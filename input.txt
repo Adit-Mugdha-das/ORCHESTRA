@@ -1,0 +1,3 @@
+flow add take x y
+note sum = x + y
+emit sum
