@@ -513,7 +513,8 @@ static ExecSignal exec_stmt(Stmt *s) {
             return SIG_CONTINUE;
         }
         case STMT_RETURN: {
-            g_return_value = eval_expr(s->expr);
+            if (s->expr) g_return_value = eval_expr(s->expr);
+            else g_return_value = value_num(0, "int");
             g_has_return = 1;
             return SIG_RETURN;
         }

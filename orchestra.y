@@ -122,6 +122,9 @@ statement:
     | RETURN expression SEMICOLON
       { $$ = make_return($2); }
 
+    | RETURN SEMICOLON
+      { $$ = make_return(NULL); }
+
     | BREAK SEMICOLON
       { $$ = make_assign(STMT_BREAK, NULL, NULL); }
     | CONTINUE SEMICOLON
