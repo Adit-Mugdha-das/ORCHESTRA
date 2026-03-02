@@ -210,6 +210,14 @@ Stmt* make_emit(Expr *expr) {
     return s;
 }
 
+Stmt* make_expr_stmt(Expr *expr) {
+    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_EXPR;
+    s->expr = expr;
+    return s;
+}
+
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block) {
     Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
     if (!s) exit(1);
@@ -475,6 +483,10 @@ static ExecSignal exec_stmt(Stmt *s) {
         case STMT_EMIT: {
             Value v = eval_expr(s->expr);
             print_value(v);
+            return SIG_OK;
+        }
+        case STMT_EXPR: {
+            (void)eval_expr(s->expr);
             return SIG_OK;
         }
         case STMT_BLOCK: {

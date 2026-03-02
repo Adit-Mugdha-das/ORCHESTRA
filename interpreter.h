@@ -14,7 +14,7 @@ typedef struct NameList NameList;
 enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN, EXPR_UNARY };
 enum { EXPR_CALL = 5 };
 
-enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN };
+enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR };
 
 /* Internal operator codes for the interpreter */
 enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_GE, OP_EQ, OP_NE, OP_AND, OP_OR, OP_NOT, OP_NEG };
@@ -88,6 +88,7 @@ StmtList* stmtlist_append(StmtList *list, Stmt *stmt);
 Stmt* make_block(StmtList *list);
 Stmt* make_assign(int kind /* STMT_NOTE/STMT_STAGE/STMT_BREAK/STMT_CONTINUE */, char *name /* takes ownership (can be NULL) */, Expr *expr);
 Stmt* make_emit(Expr *expr);
+Stmt* make_expr_stmt(Expr *expr);
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block);
 Stmt* make_repeat(Expr *cond, Stmt *body);
 Stmt* make_return(Expr *expr);

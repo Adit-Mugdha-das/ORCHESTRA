@@ -125,6 +125,9 @@ statement:
     | RETURN SEMICOLON
       { $$ = make_return(NULL); }
 
+    | IDENTIFIER LPAREN arg_list_opt RPAREN SEMICOLON
+      { $$ = make_expr_stmt(make_call($1, $3)); }
+
     | BREAK SEMICOLON
       { $$ = make_assign(STMT_BREAK, NULL, NULL); }
     | CONTINUE SEMICOLON
