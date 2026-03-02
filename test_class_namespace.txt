@@ -23,8 +23,8 @@ symphony Box {
   int w;
   int h;
 
-  flow area take(b) {
-    return b.w * b.h;
+  flow area take() {
+    return this.w * this.h;
   }
 }
 
@@ -40,5 +40,5 @@ flow main take() {
 
   note b = Box(6, 7);
   emit b;
-  emit Box.area(b);
+  emit b.area();
 }

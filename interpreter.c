@@ -325,6 +325,16 @@ Expr* make_field(char *base, char *field) {
     return e;
 }
 
+Expr* make_dotcall(char *base, char *member, ExprList *args) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_DOTCALL;
+    e->dot_base = base;
+    e->dot_member = member;
+    e->dot_args = args;
+    return e;
+}
+
 Expr* make_bin(int op, Expr *l, Expr *r) {
     Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
@@ -565,6 +575,67 @@ static Value eval_bin_numeric(int op, Value a, Value b) {
 
 static Value eval_expr(Expr *e);
 
+static Value eval_flow_call_handle(FlowHandle *flow, const char *callee, ExprList *args, int has_implicit, Value implicit) {
+    if (!flow) runtime_error("Call to undefined flow");
+
+    if (g_call_depth >= g_max_call_depth) {
+        free(flow);
+        recursion_error(callee);
+    }
+    g_call_depth++;
+
+    /* Save/restore return context for nested calls */
+    Value prev_ret = g_return_value;
+    int prev_has = g_has_return;
+    g_has_return = 0;
+
+    push_scope();
+
+    NameList *p = flow_registry_params(flow);
+    ExprList *a = args;
+
+    if (has_implicit) {
+        /* Always provide `this` inside the method body. */
+        store_value_note("this", implicit);
+
+        /* Back-compat: if method declares a first parameter, also bind it. */
+        if (p) {
+            store_value_note(p->name, implicit);
+            p = p->next;
+        }
+    }
+
+    while (p && a) {
+        Value av = eval_expr(a->expr);
+        store_value_note(p->name, av);
+        p = p->next;
+        a = a->next;
+    }
+    if (p || a) runtime_error("Argument count mismatch in call");
+
+    ExecSignal sig = exec_stmt(flow_registry_body(flow));
+    (void)sig;
+
+    free(flow);
+
+    Value outv = g_has_return ? g_return_value : value_num(0, "int");
+
+    pop_scope();
+
+    g_return_value = prev_ret;
+    g_has_return = prev_has;
+
+    g_call_depth--;
+
+    return outv;
+}
+
+static Value eval_flow_call_name(const char *callee, ExprList *args, int has_implicit, Value implicit) {
+    FlowHandle *flow = find_flow_handle(callee);
+    if (!flow) runtime_error("Call to undefined flow");
+    return eval_flow_call_handle(flow, callee, args, has_implicit, implicit);
+}
+
 static Value eval_expr(Expr *e) {
     if (!e) runtime_error("Null expression");
 
@@ -589,6 +660,25 @@ static Value eval_expr(Expr *e) {
         StructFieldValue *fv = find_struct_field(inst, e->field);
         if (!fv) runtime_error("Unknown field on ensemble instance");
         return fv->value;
+    }
+
+    if (e->kind == EXPR_DOTCALL) {
+        /* If dot_base is a variable holding a struct/class instance => implicit-this method call.
+           Else treat as a static/qualified call Type.member(...).
+        */
+        Symbol *sym = get_symbol_or_null(e->dot_base);
+        if (sym) {
+            if (strcmp(sym->type, "struct") != 0) runtime_error("Method call requires ensemble/symphony instance");
+
+            Value thisv = symbol_to_value(sym);
+            char buf[256];
+            snprintf(buf, sizeof(buf), "%s.%s", thisv.struct_type, e->dot_member);
+            return eval_flow_call_name(buf, e->dot_args, 1, thisv);
+        }
+
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s.%s", e->dot_base, e->dot_member);
+        return eval_flow_call_name(buf, e->dot_args, 0, value_num(0, "int"));
     }
 
     if (e->kind == EXPR_CALL) {
@@ -625,44 +715,7 @@ static Value eval_expr(Expr *e) {
             runtime_error("Call to undefined flow");
         }
 
-        if (g_call_depth >= g_max_call_depth) {
-            free(flow);
-            recursion_error(e->callee);
-        }
-        g_call_depth++;
-
-        /* Save/restore return context for nested calls */
-        Value prev_ret = g_return_value;
-        int prev_has = g_has_return;
-        g_has_return = 0;
-
-        push_scope();
-
-        NameList *p = flow_registry_params(flow);
-        ExprList *a = e->args;
-        while (p && a) {
-            Value av = eval_expr(a->expr);
-            store_value_note(p->name, av);
-            p = p->next;
-            a = a->next;
-        }
-        if (p || a) runtime_error("Argument count mismatch in call");
-
-        ExecSignal sig = exec_stmt(flow_registry_body(flow));
-        (void)sig;
-
-        free(flow);
-
-        Value outv = g_has_return ? g_return_value : value_num(0, "int");
-
-        pop_scope();
-
-        g_return_value = prev_ret;
-        g_has_return = prev_has;
-
-        g_call_depth--;
-
-        return outv;
+        return eval_flow_call_handle(flow, e->callee, e->args, 0, value_num(0, "int"));
     }
 
     if (e->kind == EXPR_CHAIN) {

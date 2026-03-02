@@ -25,7 +25,7 @@ typedef struct ChainPart ChainPart;
 typedef struct FieldList FieldList;
 
 /* Expression/statement kinds */
-enum { EXPR_LIT = 1, EXPR_VAR, EXPR_FIELD, EXPR_BIN, EXPR_UNARY, EXPR_CALL, EXPR_CHAIN };
+enum { EXPR_LIT = 1, EXPR_VAR, EXPR_FIELD, EXPR_DOTCALL, EXPR_BIN, EXPR_UNARY, EXPR_CALL, EXPR_CHAIN };
 
 enum { STMT_NOTE = 1, STMT_STAGE, STMT_FIELD_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR };
 
@@ -47,6 +47,11 @@ struct Expr {
     /* field access: base.field (base is a variable name for MVP) */
     char *base;
     char *field;
+
+    /* dot call: base.member(args) where base may be a type name or a variable name */
+    char *dot_base;
+    char *dot_member;
+    ExprList *dot_args;
 
     /* binary */
     int op;
@@ -114,6 +119,7 @@ Expr* make_lit_bool(int boolean);
 Expr* make_lit_string(const char *s);
 Expr* make_var(char *name /* takes ownership */);
 Expr* make_field(char *base /* takes ownership */, char *field /* takes ownership */);
+Expr* make_dotcall(char *base /* takes ownership */, char *member /* takes ownership */, ExprList *args);
 Expr* make_bin(int op, Expr *l, Expr *r);
 Expr* make_unary(int op, Expr *operand);
 Expr* make_call(char *callee /* takes ownership */, ExprList *args);

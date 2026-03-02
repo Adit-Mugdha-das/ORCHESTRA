@@ -62,6 +62,7 @@ static char *qualify_name(const char *a, const char *b) {
 %token <numlit> NUMBER
 %token <sval> STRING_LITERAL
 %token <sval> IDENTIFIER
+%token <sval> THIS
 
 %type <expr> expression logic_or logic_and comparison additive term unary primary
 %type <stmt> statement block branch_statement repeat_statement flow_definition
@@ -224,6 +225,9 @@ statement:
     | STAGE IDENTIFIER DOT IDENTIFIER ASSIGN expression SEMICOLON
       { $$ = make_field_stage($2, $4, $6); }
 
+    | STAGE THIS DOT IDENTIFIER ASSIGN expression SEMICOLON
+      { $$ = make_field_stage($2, $4, $6); }
+
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
 
@@ -237,7 +241,7 @@ statement:
       { $$ = make_expr_stmt(make_call($1, $3)); }
 
     | IDENTIFIER DOT IDENTIFIER LPAREN arg_list_opt RPAREN SEMICOLON
-      { $$ = make_expr_stmt(make_call(qualify_name($1, $3), $5)); }
+      { $$ = make_expr_stmt(make_dotcall($1, $3, $5)); }
 
     | BREAK SEMICOLON
       { $$ = make_assign(STMT_BREAK, NULL, NULL); }
@@ -324,8 +328,12 @@ primary:
     | NUMBER { $$ = make_lit_num($1.num, $1.is_float); }
     | STRING_LITERAL { $$ = make_lit_string($1); free($1); }
     | IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_call($1, $3); }
-    | IDENTIFIER DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_call(qualify_name($1, $3), $5); }
+    | IDENTIFIER DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_dotcall($1, $3, $5); }
     | IDENTIFIER DOT IDENTIFIER { $$ = make_field($1, $3); }
+    | THIS LPAREN arg_list_opt RPAREN { $$ = make_call($1, $3); }
+    | THIS DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_dotcall($1, $3, $5); }
+    | THIS DOT IDENTIFIER { $$ = make_field($1, $3); }
+    | THIS { $$ = make_var($1); }
     | IDENTIFIER { $$ = make_var($1); }
     ;
 
