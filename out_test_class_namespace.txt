@@ -1,0 +1,6 @@
+5
+42
+hi
+20
+Ali
+Person{age=20,name=Ali}

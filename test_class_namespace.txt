@@ -1,0 +1,33 @@
+symphony Math {
+  flow add take(a, b) {
+    return a + b;
+  }
+
+  flow mul take(a, b) {
+    return a * b;
+  }
+}
+
+ensemble Person {
+  int age;
+  string name;
+}
+
+symphony Text {
+  flow hello take() {
+    return "hi";
+  }
+}
+
+flow main take() {
+  emit Math.add(2, 3);
+  emit Math.mul(6, 7);
+  emit Text.hello();
+
+  note p = Person();
+  stage p.age = 20;
+  stage p.name = "Ali";
+  emit p.age;
+  emit p.name;
+  emit p;
+}

@@ -242,6 +242,8 @@ static StructInstance* make_struct_instance(const char *type_name) {
     inst->type_name = arena_strdup(type_name);
     inst->fields = NULL;
 
+    StructFieldValue *tail = NULL;
+
     for (FieldList *f = def->fields; f; f = f->next) {
         StructFieldValue *fv = (StructFieldValue*)arena_calloc(1, sizeof(StructFieldValue));
         if (!fv) exit(1);
@@ -251,8 +253,16 @@ static StructInstance* make_struct_instance(const char *type_name) {
         else if (strcmp(f->type, "bool") == 0) fv->value = value_bool(0);
         else if (strcmp(f->type, "string") == 0) fv->value = value_string("");
         else runtime_error("Unsupported ensemble field type");
-        fv->next = inst->fields;
-        inst->fields = fv;
+
+        /* Preserve definition order for emit pretty-printing. */
+        fv->next = NULL;
+        if (!inst->fields) {
+            inst->fields = fv;
+            tail = fv;
+        } else {
+            tail->next = fv;
+            tail = fv;
+        }
     }
 
     return inst;
@@ -753,7 +763,24 @@ static void print_value(Value v) {
     }
 
     if (strcmp(v.type, "struct") == 0) {
-        fprintf(out, "%s\n", v.struct_type);
+        StructInstance *inst = (StructInstance*)v.ptr;
+        fprintf(out, "%s{", v.struct_type);
+
+        int first = 1;
+        for (StructFieldValue *f = inst ? inst->fields : NULL; f; f = f->next) {
+            if (!first) fprintf(out, ",");
+            first = 0;
+
+            fprintf(out, "%s=", f->name);
+            Value fv = f->value;
+            if (strcmp(fv.type, "int") == 0) fprintf(out, "%lld", (long long)fv.num);
+            else if (strcmp(fv.type, "float") == 0) fprintf(out, "%g", fv.num);
+            else if (strcmp(fv.type, "bool") == 0) fprintf(out, "%s", fv.boolean ? "true" : "false");
+            else if (strcmp(fv.type, "string") == 0) fprintf(out, "%s", fv.str);
+            else fprintf(out, "<%s>", fv.type);
+        }
+
+        fprintf(out, "}\n");
         return;
     }
 
