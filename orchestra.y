@@ -22,16 +22,19 @@ static Stmt *g_main_block = NULL;
   struct StmtList;
   struct ExprList;
   struct NameList;
+  struct ChainPart;
 }
 
 %union {
   struct { double num; int is_float; } numlit;
   char *sval;
+  int ival;
   struct Expr *expr;
   struct Stmt *stmt;
   struct StmtList *stmt_list;
   struct ExprList *expr_list;
   struct NameList *name_list;
+  struct ChainPart *chain_parts;
 }
 
 /* keywords */
@@ -49,11 +52,13 @@ static Stmt *g_main_block = NULL;
 %token <sval> STRING_LITERAL
 %token <sval> IDENTIFIER
 
-%type <expr> expression
+%type <expr> expression logic_or logic_and comparison additive term unary primary
 %type <stmt> statement block branch_statement repeat_statement flow_definition
 %type <stmt_list> statement_list
 %type <expr_list> arg_list arg_list_opt
 %type <name_list> parameter_part parameter_list_opt parameter_list
+%type <chain_parts> comp_tail
+%type <ival> compop
 
 %left OR
 %left AND
@@ -151,59 +156,69 @@ repeat_statement:
         { $$ = make_repeat($3, $5); }
     ;
 
-/* ----- expressions (type-only) ----- */
+/* ----- expressions ----- */
 expression:
-      MINUS expression %prec UMINUS
-        { $$ = make_unary(OP_NEG, $2); }
-    | NOT expression
-        { $$ = make_unary(OP_NOT, $2); }
+      logic_or { $$ = $1; }
+    ;
 
-    | expression PLUS expression
-        { $$ = make_bin(OP_PLUS, $1, $3); }
-    | expression MINUS expression
-    { $$ = make_bin(OP_MINUS, $1, $3); }
-    | expression MUL expression
-    { $$ = make_bin(OP_MUL, $1, $3); }
-    | expression DIV expression
-    { $$ = make_bin(OP_DIV, $1, $3); }
+logic_or:
+      logic_or OR logic_and { $$ = make_bin(OP_OR, $1, $3); }
+    | logic_and { $$ = $1; }
+    ;
 
-    | expression LT expression
-      { $$ = make_bin(OP_LT, $1, $3); }
-    | expression LE expression
-      { $$ = make_bin(OP_LE, $1, $3); }
-    | expression GT expression
-      { $$ = make_bin(OP_GT, $1, $3); }
-    | expression GE expression
-      { $$ = make_bin(OP_GE, $1, $3); }
-    | expression EQ expression
-      { $$ = make_bin(OP_EQ, $1, $3); }
-    | expression NE expression
-      { $$ = make_bin(OP_NE, $1, $3); }
+logic_and:
+  logic_and AND comparison { $$ = make_bin(OP_AND, $1, $3); }
+    | comparison { $$ = $1; }
+    ;
 
-    | expression AND expression
-      { $$ = make_bin(OP_AND, $1, $3); }
-    | expression OR expression
-      { $$ = make_bin(OP_OR, $1, $3); }
+comparison:
+  additive comp_tail
+      {
+        if ($2) $$ = make_chain($1, $2);
+        else $$ = $1;
+      }
+    ;
 
-    | LPAREN expression RPAREN
-      { $$ = $2; }
+comp_tail:
+  comp_tail compop additive { $$ = chainpart_append($1, $2, $3); }
+    | /* empty */ { $$ = NULL; }
+    ;
 
-    | TRUE
-      { $$ = make_lit_bool(1); }
-    | FALSE
-      { $$ = make_lit_bool(0); }
+compop:
+      LT { $$ = OP_LT; }
+    | LE { $$ = OP_LE; }
+    | GT { $$ = OP_GT; }
+    | GE { $$ = OP_GE; }
+    | EQ { $$ = OP_EQ; }
+    | NE { $$ = OP_NE; }
+    ;
 
-    | NUMBER
-      { $$ = make_lit_num($1.num, $1.is_float); }
+additive:
+      additive PLUS term { $$ = make_bin(OP_PLUS, $1, $3); }
+    | additive MINUS term { $$ = make_bin(OP_MINUS, $1, $3); }
+    | term { $$ = $1; }
+    ;
 
-    | STRING_LITERAL
-      { $$ = make_lit_string($1); free($1); }
+term:
+      term MUL unary { $$ = make_bin(OP_MUL, $1, $3); }
+    | term DIV unary { $$ = make_bin(OP_DIV, $1, $3); }
+    | unary { $$ = $1; }
+    ;
 
-    | IDENTIFIER LPAREN arg_list_opt RPAREN
-      { $$ = make_call($1, $3); }
+unary:
+      MINUS unary %prec UMINUS { $$ = make_unary(OP_NEG, $2); }
+    | NOT unary { $$ = make_unary(OP_NOT, $2); }
+    | primary { $$ = $1; }
+    ;
 
-    | IDENTIFIER
-      { $$ = make_var($1); }
+primary:
+      LPAREN expression RPAREN { $$ = $2; }
+    | TRUE { $$ = make_lit_bool(1); }
+    | FALSE { $$ = make_lit_bool(0); }
+    | NUMBER { $$ = make_lit_num($1.num, $1.is_float); }
+    | STRING_LITERAL { $$ = make_lit_string($1); free($1); }
+    | IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_call($1, $3); }
+    | IDENTIFIER { $$ = make_var($1); }
     ;
 
 arg_list_opt:

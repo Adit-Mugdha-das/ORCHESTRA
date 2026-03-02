@@ -148,6 +148,28 @@ Expr* make_call(char *callee, ExprList *args) {
     return e;
 }
 
+Expr* make_chain(Expr *first, ChainPart *rest) {
+    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_CHAIN;
+    e->chain_first = first;
+    e->chain_rest = rest;
+    return e;
+}
+
+ChainPart* chainpart_append(ChainPart *list, int op, Expr *expr) {
+    ChainPart *node = (ChainPart*)calloc(1, sizeof(ChainPart));
+    if (!node) exit(1);
+    node->op = op;
+    node->expr = expr;
+    node->next = NULL;
+    if (!list) return node;
+    ChainPart *cur = list;
+    while (cur->next) cur = cur->next;
+    cur->next = node;
+    return list;
+}
+
 ExprList* exprlist_append(ExprList *list, Expr *expr) {
     ExprList *node = (ExprList*)calloc(1, sizeof(ExprList));
     if (!node) exit(1);
@@ -351,6 +373,37 @@ static Value eval_expr(Expr *e) {
         g_has_return = prev_has;
 
         return outv;
+    }
+
+    if (e->kind == EXPR_CHAIN) {
+        Value prev = eval_expr(e->chain_first);
+        for (ChainPart *p = e->chain_rest; p; p = p->next) {
+            Value next = eval_expr(p->expr);
+            int ok = 0;
+
+            if (p->op == OP_LT || p->op == OP_LE || p->op == OP_GT || p->op == OP_GE) {
+                if (!is_numeric_type(prev.type) || !is_numeric_type(next.type)) {
+                    runtime_error("Comparison requires numeric types");
+                }
+                if (p->op == OP_LT) ok = (prev.num < next.num);
+                else if (p->op == OP_LE) ok = (prev.num <= next.num);
+                else if (p->op == OP_GT) ok = (prev.num > next.num);
+                else ok = (prev.num >= next.num);
+            } else if (p->op == OP_EQ || p->op == OP_NE) {
+                int eq = 0;
+                if (is_numeric_type(prev.type) && is_numeric_type(next.type)) eq = (prev.num == next.num);
+                else if (strcmp(prev.type, "bool") == 0 && strcmp(next.type, "bool") == 0) eq = (prev.boolean == next.boolean);
+                else if (strcmp(prev.type, "string") == 0 && strcmp(next.type, "string") == 0) eq = (strcmp(prev.str, next.str) == 0);
+                else runtime_error("==/!= operands must be comparable");
+                ok = (p->op == OP_EQ) ? eq : !eq;
+            } else {
+                runtime_error("Invalid operator in comparison chain");
+            }
+
+            if (!ok) return value_bool(0);
+            prev = next;
+        }
+        return value_bool(1);
     }
 
     if (e->kind == EXPR_UNARY) {
@@ -567,6 +620,19 @@ static void free_expr(Expr *e) {
             cur = next;
         }
         e->args = NULL;
+    }
+
+    if (e->kind == EXPR_CHAIN) {
+        free_expr(e->chain_first);
+        e->chain_first = NULL;
+        ChainPart *p = e->chain_rest;
+        while (p) {
+            ChainPart *next = p->next;
+            free_expr(p->expr);
+            free(p);
+            p = next;
+        }
+        e->chain_rest = NULL;
     }
 
     free_expr(e->left);

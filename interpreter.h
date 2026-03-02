@@ -9,10 +9,10 @@ typedef struct Stmt Stmt;
 typedef struct StmtList StmtList;
 typedef struct ExprList ExprList;
 typedef struct NameList NameList;
+typedef struct ChainPart ChainPart;
 
 /* Expression/statement kinds */
-enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN, EXPR_UNARY };
-enum { EXPR_CALL = 5 };
+enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN, EXPR_UNARY, EXPR_CALL, EXPR_CHAIN };
 
 enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR };
 
@@ -39,6 +39,16 @@ struct Expr {
     /* call */
     char *callee;
     ExprList *args;
+
+    /* comparison chain */
+    Expr *chain_first;
+    ChainPart *chain_rest;
+};
+
+struct ChainPart {
+    int op; /* OP_LT/OP_LE/OP_GT/OP_GE */
+    Expr *expr;
+    ChainPart *next;
 };
 
 struct ExprList {
@@ -79,9 +89,11 @@ Expr* make_var(char *name /* takes ownership */);
 Expr* make_bin(int op, Expr *l, Expr *r);
 Expr* make_unary(int op, Expr *operand);
 Expr* make_call(char *callee /* takes ownership */, ExprList *args);
+Expr* make_chain(Expr *first, ChainPart *rest);
 
 ExprList* exprlist_append(ExprList *list, Expr *expr);
 NameList* namelist_append(NameList *list, char *name /* takes ownership */);
+ChainPart* chainpart_append(ChainPart *list, int op, Expr *expr);
 
 StmtList* stmtlist_append(StmtList *list, Stmt *stmt);
 

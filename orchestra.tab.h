@@ -42,11 +42,12 @@
   struct StmtList;
   struct ExprList;
   struct NameList;
+  struct ChainPart;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 50 "orchestra.tab.h"
+#line 51 "orchestra.tab.h"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -109,20 +110,22 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 27 "orchestra.y"
+#line 28 "orchestra.y"
 
   struct { double num; int is_float; } numlit;
   char *sval;
+  int ival;
   struct Expr *expr;
   struct Stmt *stmt;
   struct StmtList *stmt_list;
   struct ExprList *expr_list;
   struct NameList *name_list;
+  struct ChainPart *chain_parts;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 126 "orchestra.tab.h"
+#line 129 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
