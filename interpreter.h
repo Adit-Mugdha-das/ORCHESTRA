@@ -142,7 +142,7 @@ Stmt* make_return(Expr *expr);
 
 /* Ensemble (struct) registry */
 FieldList* fieldlist_append(FieldList *list, char *type /* takes ownership */, char *name /* takes ownership */);
-void register_ensemble(char *name /* takes ownership */, FieldList *fields /* takes ownership */);
+void register_ensemble(char *name /* takes ownership */, char *parent /* can be NULL, takes ownership */, FieldList *fields /* takes ownership */);
 int is_ensemble_type(const char *name);
 
 /* Execute and free */

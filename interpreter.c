@@ -173,6 +173,7 @@ static Value value_struct(const char *type_name, void *ptr) {
 
 typedef struct EnsembleDef {
     char *name;
+    char *parent;
     FieldList *fields;
     struct EnsembleDef *next;
 } EnsembleDef;
@@ -197,6 +198,21 @@ static EnsembleDef* find_ensemble_def(const char *name) {
     return NULL;
 }
 
+static FieldList* copy_fieldlist(FieldList *src) {
+    FieldList *out = NULL;
+    FieldList *tail = NULL;
+    for (FieldList *p = src; p; p = p->next) {
+        FieldList *node = (FieldList*)arena_calloc(1, sizeof(FieldList));
+        if (!node) exit(1);
+        node->type = p->type;
+        node->name = p->name;
+        node->next = NULL;
+        if (!out) { out = node; tail = node; }
+        else { tail->next = node; tail = node; }
+    }
+    return out;
+}
+
 FieldList* fieldlist_append(FieldList *list, char *type, char *name) {
     FieldList *node = (FieldList*)arena_calloc(1, sizeof(FieldList));
     if (!node) exit(1);
@@ -210,14 +226,30 @@ FieldList* fieldlist_append(FieldList *list, char *type, char *name) {
     return list;
 }
 
-void register_ensemble(char *name, FieldList *fields) {
-    if (!name) runtime_error("Null ensemble name");
-    if (find_ensemble_def(name)) runtime_error("Duplicate ensemble name");
+void register_ensemble(char *name, char *parent, FieldList *fields) {
+    if (!name) runtime_error("Null type name");
+    if (find_ensemble_def(name)) runtime_error("Duplicate type name");
+
+    FieldList *final_fields = fields;
+    if (parent) {
+        EnsembleDef *pdef = find_ensemble_def(parent);
+        if (!pdef) runtime_error("Unknown parent type in extends");
+        FieldList *parent_copy = copy_fieldlist(pdef->fields);
+        if (!parent_copy) {
+            final_fields = fields;
+        } else {
+            FieldList *tail = parent_copy;
+            while (tail->next) tail = tail->next;
+            tail->next = fields;
+            final_fields = parent_copy;
+        }
+    }
 
     EnsembleDef *node = (EnsembleDef*)arena_calloc(1, sizeof(EnsembleDef));
     if (!node) exit(1);
     node->name = name;
-    node->fields = fields;
+    node->parent = parent;
+    node->fields = final_fields;
     node->next = g_ensembles;
     g_ensembles = node;
 }
@@ -597,12 +629,6 @@ static Value eval_flow_call_handle(FlowHandle *flow, const char *callee, ExprLis
     if (has_implicit) {
         /* Always provide `this` inside the method body. */
         store_value_note("this", implicit);
-
-        /* Back-compat: if method declares a first parameter, also bind it. */
-        if (p) {
-            store_value_note(p->name, implicit);
-            p = p->next;
-        }
     }
 
     while (p && a) {
@@ -634,6 +660,23 @@ static Value eval_flow_call_name(const char *callee, ExprList *args, int has_imp
     FlowHandle *flow = find_flow_handle(callee);
     if (!flow) runtime_error("Call to undefined flow");
     return eval_flow_call_handle(flow, callee, args, has_implicit, implicit);
+}
+
+static char* resolve_method_callee(const char *start_type, const char *member) {
+    const char *cur = start_type;
+    while (cur && cur[0]) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s.%s", cur, member);
+        FlowHandle *h = find_flow_handle(buf);
+        if (h) {
+            free(h);
+            return arena_strdup(buf);
+        }
+
+        EnsembleDef *def = find_ensemble_def(cur);
+        cur = def ? def->parent : NULL;
+    }
+    return NULL;
 }
 
 static Value eval_expr(Expr *e) {
@@ -671,14 +714,15 @@ static Value eval_expr(Expr *e) {
             if (strcmp(sym->type, "struct") != 0) runtime_error("Method call requires ensemble/symphony instance");
 
             Value thisv = symbol_to_value(sym);
-            char buf[256];
-            snprintf(buf, sizeof(buf), "%s.%s", thisv.struct_type, e->dot_member);
-            return eval_flow_call_name(buf, e->dot_args, 1, thisv);
+            char *callee = resolve_method_callee(thisv.struct_type, e->dot_member);
+            if (!callee) runtime_error("Undefined method for type");
+            return eval_flow_call_name(callee, e->dot_args, 1, thisv);
         }
 
-        char buf[256];
-        snprintf(buf, sizeof(buf), "%s.%s", e->dot_base, e->dot_member);
-        return eval_flow_call_name(buf, e->dot_args, 0, value_num(0, "int"));
+        /* Static call: Type.method(...) with inheritance lookup */
+        char *callee = resolve_method_callee(e->dot_base, e->dot_member);
+        if (!callee) runtime_error("Call to undefined flow");
+        return eval_flow_call_name(callee, e->dot_args, 0, value_num(0, "int"));
     }
 
     if (e->kind == EXPR_CALL) {

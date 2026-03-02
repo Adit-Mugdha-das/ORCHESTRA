@@ -12,6 +12,7 @@
 
 "flow"      return FLOW;
 "symphony"  return SYMPHONY;
+"extends"   return EXTENDS;
 "take"      return TAKE;
 "emit"      return EMIT;
 "return"    return RETURN;

@@ -1,0 +1,33 @@
+symphony Shape {
+  int x;
+  int y;
+
+  flow move take(dx, dy) {
+    stage this.x = this.x + dx;
+    stage this.y = this.y + dy;
+    return 0;
+  }
+
+  flow area take() {
+    return 0;
+  }
+}
+
+symphony Rect extends Shape {
+  int w;
+  int h;
+
+  flow area take() {
+    return this.w * this.h;
+  }
+}
+
+flow main take() {
+  note r = Rect(1, 2, 6, 7);
+  emit r;
+
+  r.move(3, 4);
+  emit r;
+
+  emit r.area();
+}

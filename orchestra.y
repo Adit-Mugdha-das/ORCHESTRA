@@ -50,6 +50,7 @@ static char *qualify_name(const char *a, const char *b) {
 
 /* keywords */
 %token FLOW SYMPHONY TAKE EMIT RETURN NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
+%token EXTENDS
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
 %token TRUE FALSE
 %token BREAK CONTINUE
@@ -74,6 +75,7 @@ static char *qualify_name(const char *a, const char *b) {
 
 
 %type <sval> type_spec
+%type <sval> extends_opt
 %type <field_list> ensemble_fields_opt ensemble_fields ensemble_field
 
 %left OR
@@ -96,20 +98,26 @@ program:
 
 /* ---- symphony (class-like namespace MVP) ---- */
 symphony_definition:
-    SYMPHONY IDENTIFIER
+    SYMPHONY IDENTIFIER extends_opt
     {
       /* Enter class/ensemble scope for name qualification. */
       g_current_class = $2;
       g_current_symphony_fields = NULL;
+      /* stash parent name in a simple way: store it in g_current_symphony_fields later via register */
     }
     LBRACE symphony_members RBRACE
     {
       /* Make symphony constructible (constructor + fields), like a class with data. */
-      register_ensemble($2, g_current_symphony_fields);
+      register_ensemble($2, $3, g_current_symphony_fields);
       g_current_symphony_fields = NULL;
       /* Exit class/ensemble scope. */
       g_current_class = NULL;
     }
+    ;
+
+extends_opt:
+      EXTENDS IDENTIFIER { $$ = $2; }
+    | /* empty */ { $$ = NULL; }
     ;
 
 symphony_members:
@@ -131,7 +139,7 @@ symphony_member:
 */
 ensemble_definition:
     ENSEMBLE IDENTIFIER LBRACE ensemble_fields_opt RBRACE
-    { register_ensemble($2, $4); }
+  { register_ensemble($2, NULL, $4); }
     ;
 
 ensemble_fields_opt:
