@@ -367,6 +367,23 @@ Expr* make_dotcall(char *base, char *member, ExprList *args) {
     return e;
 }
 
+Expr* make_supercall(char *member, ExprList *args) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_SUPERCALL;
+    e->super_member = member;
+    e->super_args = args;
+    return e;
+}
+
+Expr* make_superctor(ExprList *args) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_SUPERCTOR;
+    e->super_ctor_args = args;
+    return e;
+}
+
 Expr* make_bin(int op, Expr *l, Expr *r) {
     Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
@@ -679,6 +696,39 @@ static char* resolve_method_callee(const char *start_type, const char *member) {
     return NULL;
 }
 
+static char* resolve_super_method_callee(const char *child_type, const char *member) {
+    EnsembleDef *def = find_ensemble_def(child_type);
+    const char *parent = def ? def->parent : NULL;
+    if (!parent) return NULL;
+    return resolve_method_callee(parent, member);
+}
+
+static Value get_this_value_or_error(void) {
+    Symbol *this_sym = get_symbol_or_null("this");
+    if (!this_sym || strcmp(this_sym->type, "struct") != 0) runtime_error("this is not available here");
+    return symbol_to_value(this_sym);
+}
+
+static void init_parent_fields_fallback(StructInstance *inst, const char *parent_type, ExprList *args) {
+    EnsembleDef *pdef = find_ensemble_def(parent_type);
+    if (!pdef) runtime_error("Unknown parent type");
+
+    int argc = exprlist_length(args);
+    int fieldc = fieldlist_length(pdef->fields);
+    if (argc != fieldc) runtime_error("super() argument count mismatch");
+
+    StructFieldValue *fv = inst ? inst->fields : NULL;
+    FieldList *fd = pdef->fields;
+    ExprList *a = args;
+    while (fv && fd && a) {
+        Value av = eval_expr(a->expr);
+        fv->value = coerce_to_field_type(av, fd->type);
+        fv = fv->next;
+        fd = fd->next;
+        a = a->next;
+    }
+}
+
 static Value eval_expr(Expr *e) {
     if (!e) runtime_error("Null expression");
 
@@ -725,6 +775,36 @@ static Value eval_expr(Expr *e) {
         return eval_flow_call_name(callee, e->dot_args, 0, value_num(0, "int"));
     }
 
+    if (e->kind == EXPR_SUPERCALL) {
+        /* Only valid inside an implicit-this method call (requires `this` bound). */
+        Symbol *this_sym = get_symbol_or_null("this");
+        if (!this_sym || strcmp(this_sym->type, "struct") != 0) runtime_error("super.method() requires a method context with this");
+
+        Value thisv = symbol_to_value(this_sym);
+        char *callee = resolve_super_method_callee(thisv.struct_type, e->super_member);
+        if (!callee) runtime_error("Undefined super method");
+        return eval_flow_call_name(callee, e->super_args, 1, thisv);
+    }
+
+    if (e->kind == EXPR_SUPERCTOR) {
+        Value thisv = get_this_value_or_error();
+
+        EnsembleDef *cdef = find_ensemble_def(thisv.struct_type);
+        const char *parent = cdef ? cdef->parent : NULL;
+        if (!parent) runtime_error("super() used but type has no parent");
+
+        /* Prefer calling Parent.init(args) if it exists; otherwise initialize parent fields directly. */
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s.init", parent);
+        FlowHandle *h = find_flow_handle(buf);
+        if (h) {
+            return eval_flow_call_handle(h, buf, e->super_ctor_args, 1, thisv);
+        }
+
+        init_parent_fields_fallback((StructInstance*)thisv.ptr, parent, e->super_ctor_args);
+        return value_num(0, "int");
+    }
+
     if (e->kind == EXPR_CALL) {
         FlowHandle *flow = find_flow_handle(e->callee);
         if (!flow) {
@@ -732,6 +812,18 @@ static Value eval_expr(Expr *e) {
             if (is_ensemble_type(e->callee)) {
                 EnsembleDef *def = find_ensemble_def(e->callee);
                 StructInstance *inst = make_struct_instance(e->callee);
+
+                /* If there is a user-defined init method, prefer it as the constructor. */
+                {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "%s.init", e->callee);
+                    FlowHandle *ih = find_flow_handle(buf);
+                    if (ih) {
+                        Value thisv = value_struct(e->callee, inst);
+                        (void)eval_flow_call_handle(ih, buf, e->args, 1, thisv);
+                        return value_struct(e->callee, inst);
+                    }
+                }
 
                 int argc = exprlist_length(e->args);
                 int fieldc = fieldlist_length(def ? def->fields : NULL);

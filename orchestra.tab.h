@@ -103,7 +103,8 @@
      STRING_LITERAL = 303,
      IDENTIFIER = 304,
      THIS = 305,
-     UMINUS = 306
+     SUPER = 306,
+     UMINUS = 307
    };
 #endif
 
@@ -130,7 +131,7 @@ typedef union YYSTYPE
 
 
 /* Line 1676 of yacc.c  */
-#line 134 "orchestra.tab.h"
+#line 135 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

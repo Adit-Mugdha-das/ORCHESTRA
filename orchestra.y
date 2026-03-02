@@ -64,6 +64,7 @@ static char *qualify_name(const char *a, const char *b) {
 %token <sval> STRING_LITERAL
 %token <sval> IDENTIFIER
 %token <sval> THIS
+%token <sval> SUPER
 
 %type <expr> expression logic_or logic_and comparison additive term unary primary
 %type <stmt> statement block branch_statement repeat_statement flow_definition
@@ -236,6 +237,9 @@ statement:
     | STAGE THIS DOT IDENTIFIER ASSIGN expression SEMICOLON
       { $$ = make_field_stage($2, $4, $6); }
 
+    | SUPER LPAREN arg_list_opt RPAREN SEMICOLON
+      { $$ = make_expr_stmt(make_superctor($3)); }
+
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
 
@@ -342,6 +346,9 @@ primary:
     | THIS DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_dotcall($1, $3, $5); }
     | THIS DOT IDENTIFIER { $$ = make_field($1, $3); }
     | THIS { $$ = make_var($1); }
+
+    | SUPER DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_supercall($3, $5); }
+    | SUPER LPAREN arg_list_opt RPAREN { $$ = make_superctor($3); }
     | IDENTIFIER { $$ = make_var($1); }
     ;
 

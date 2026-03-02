@@ -37,6 +37,7 @@
 "false"     return FALSE;
 
 "this"      { yylval.sval = arena_strdup("this"); return THIS; }
+"super"     { yylval.sval = arena_strdup("super"); return SUPER; }
 
 "=="        return EQ;
 "!="        return NE;
