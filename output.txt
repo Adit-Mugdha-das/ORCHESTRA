@@ -1,13 +1,6 @@
-KEYWORD_FLOW
-IDENTIFIER
-KEYWORD_TAKE
-IDENTIFIER
-IDENTIFIER
-KEYWORD_NOTE
-IDENTIFIER
-OPERATOR
-IDENTIFIER
-OPERATOR
-IDENTIFIER
-KEYWORD_EMIT
-IDENTIFIER
+Variable declared: x
+Variable declared: y
+Stage assignment: x
+Stage assignment: y
+Emit statement
+Parsed flow: main

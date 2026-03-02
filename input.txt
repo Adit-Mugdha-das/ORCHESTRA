@@ -1,3 +1,7 @@
-flow add take x y
-note sum = x + y
-emit sum
+flow main {
+    note x = 5;
+    note y = 10;
+    stage x = x + y;
+    stage y = y * 2;
+    emit x;
+}
