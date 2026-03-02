@@ -62,6 +62,15 @@ Expr* make_lit_num(double num, int is_float) {
     return e;
 }
 
+Expr* make_lit_bool(int boolean) {
+    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_LIT;
+    strcpy(e->lit_type, "bool");
+    e->lit_bool = boolean ? 1 : 0;
+    return e;
+}
+
 Expr* make_lit_string(const char *s) {
     Expr *e = (Expr*)calloc(1, sizeof(Expr));
     if (!e) exit(1);
@@ -87,6 +96,16 @@ Expr* make_bin(int op, Expr *l, Expr *r) {
     e->op = op;
     e->left = l;
     e->right = r;
+    return e;
+}
+
+Expr* make_unary(int op, Expr *operand) {
+    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_UNARY;
+    e->op = op;
+    e->left = operand;
+    e->right = NULL;
     return e;
 }
 
@@ -210,6 +229,19 @@ static Value eval_expr(Expr *e) {
     if (e->kind == EXPR_VAR) {
         Symbol *sym = get_symbol_or_error(e->name);
         return symbol_to_value(sym);
+    }
+
+    if (e->kind == EXPR_UNARY) {
+        Value v = eval_expr(e->left);
+        if (e->op == OP_NOT) {
+            if (strcmp(v.type, "bool") != 0) runtime_error("! requires bool");
+            return value_bool(!v.boolean);
+        }
+        if (e->op == OP_NEG) {
+            if (!is_numeric_type(v.type)) runtime_error("Unary - requires numeric type");
+            return value_num(-v.num, v.type);
+        }
+        runtime_error("Unknown unary operator");
     }
 
     if (e->kind == EXPR_BIN) {

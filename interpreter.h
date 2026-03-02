@@ -9,11 +9,11 @@ typedef struct Stmt Stmt;
 typedef struct StmtList StmtList;
 
 /* Expression/statement kinds */
-enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN };
+enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN, EXPR_UNARY };
 enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT };
 
 /* Internal operator codes for the interpreter */
-enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_EQ, OP_AND, OP_OR };
+enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_EQ, OP_AND, OP_OR, OP_NOT, OP_NEG };
 
 struct Expr {
     int kind;
@@ -55,9 +55,11 @@ struct Stmt {
 
 /* AST constructors used by the parser */
 Expr* make_lit_num(double num, int is_float);
+Expr* make_lit_bool(int boolean);
 Expr* make_lit_string(const char *s);
 Expr* make_var(char *name /* takes ownership */);
 Expr* make_bin(int op, Expr *l, Expr *r);
+Expr* make_unary(int op, Expr *operand);
 
 StmtList* stmtlist_append(StmtList *list, Stmt *stmt);
 

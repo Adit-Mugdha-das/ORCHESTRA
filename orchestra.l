@@ -27,6 +27,9 @@
 "bool"      return TYPE_BOOL;
 "string"    return TYPE_STRING;
 
+"true"      return TRUE;
+"false"     return FALSE;
+
 "=="        return EQ;
 "="         return ASSIGN;
 "&&"        return AND;
@@ -34,6 +37,7 @@
 "+"         return PLUS;
 "-"         return MINUS;
 "*"         return MUL;
+"!"         return NOT;
 "//"[^\n]*  ;
 "/"         return DIV;
 "<="        return LE;

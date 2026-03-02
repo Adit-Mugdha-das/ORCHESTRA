@@ -33,9 +33,10 @@ static Stmt *g_main_block = NULL;
 /* keywords */
 %token FLOW TAKE EMIT NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
+%token TRUE FALSE
 
 /* operators/symbols */
-%token EQ ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT
+%token EQ ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT NOT
 %token SEMICOLON COMMA LPAREN RPAREN LBRACE RBRACE
 
 /* typed tokens */
@@ -53,6 +54,8 @@ static Stmt *g_main_block = NULL;
 %left LT LE GT
 %left PLUS MINUS
 %left MUL DIV
+%right NOT
+%nonassoc UMINUS
 
 %%
 
@@ -125,8 +128,13 @@ repeat_statement:
 
 /* ----- expressions (type-only) ----- */
 expression:
-      expression PLUS expression
-    { $$ = make_bin(OP_PLUS, $1, $3); }
+      MINUS expression %prec UMINUS
+        { $$ = make_unary(OP_NEG, $2); }
+    | NOT expression
+        { $$ = make_unary(OP_NOT, $2); }
+
+    | expression PLUS expression
+        { $$ = make_bin(OP_PLUS, $1, $3); }
     | expression MINUS expression
     { $$ = make_bin(OP_MINUS, $1, $3); }
     | expression MUL expression
@@ -150,6 +158,11 @@ expression:
 
     | LPAREN expression RPAREN
       { $$ = $2; }
+
+    | TRUE
+      { $$ = make_lit_bool(1); }
+    | FALSE
+      { $$ = make_lit_bool(0); }
 
     | NUMBER
       { $$ = make_lit_num($1.num, $1.is_float); }
