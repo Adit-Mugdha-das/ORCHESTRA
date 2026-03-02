@@ -82,46 +82,337 @@ int yyerror(const char *s);
 
 #include "symbol_table.h"
 
-/* ----- helpers ----- */
-static void type_error(const char *msg) {
-    fprintf(yyout ? yyout : stdout, "Type Error: %s\n", msg);
-    exit(1);
+/* ----- minimal interpreter types ----- */
+typedef struct Value {
+  char type[16];
+  double num;
+  char str[256];
+  int boolean;
+} Value;
+
+typedef struct Expr Expr;
+typedef struct Stmt Stmt;
+typedef struct StmtList StmtList;
+
+struct Expr {
+  int kind;
+  Value lit;
+  char *name;
+  int op;
+  Expr *left;
+  Expr *right;
+};
+
+struct StmtList {
+  Stmt *stmt;
+  StmtList *next;
+};
+
+struct Stmt {
+  int kind;
+  char *name;
+  Expr *expr;
+  StmtList *list; /* for blocks */
+  Expr *cond;
+  Stmt *then_block;
+  Stmt *else_block;
+  Stmt *body;
+};
+
+enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN };
+enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT };
+enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_GT, OP_EQ, OP_AND, OP_OR };
+
+static void runtime_error(const char *msg) {
+  fprintf(yyout ? yyout : stdout, "Runtime Error: %s\n", msg);
+  exit(1);
 }
 
-static int is_numeric(const char *t) {
-    return (strcmp(t, "int") == 0 || strcmp(t, "float") == 0);
+static int is_numeric_type(const char *t) {
+  return (strcmp(t, "int") == 0 || strcmp(t, "float") == 0);
 }
 
-static int is_bool(const char *t) {
-    return (strcmp(t, "bool") == 0);
+static Value value_num(double num, const char *type) {
+  Value v;
+  strncpy(v.type, type, 15);
+  v.type[15] = '\0';
+  v.num = num;
+  v.str[0] = '\0';
+  v.boolean = 0;
+  return v;
 }
 
-/* unknown inference: if one side is unknown, it becomes the other side */
-static const char* unify_unknown(const char *a, const char *b) {
-    if (strcmp(a, "unknown") == 0) return b;
-    if (strcmp(b, "unknown") == 0) return a;
-    return NULL; // no inference needed
+static Value value_bool(int b) {
+  Value v;
+  strcpy(v.type, "bool");
+  v.num = 0;
+  v.str[0] = '\0';
+  v.boolean = b ? 1 : 0;
+  return v;
 }
 
-static void set_type(char dst[16], const char *src) {
-    strncpy(dst, src, 15);
-    dst[15] = '\0';
+static Value value_string(const char *s) {
+  Value v;
+  strcpy(v.type, "string");
+  v.num = 0;
+  v.boolean = 0;
+  strncpy(v.str, s ? s : "", sizeof(v.str) - 1);
+  v.str[sizeof(v.str) - 1] = '\0';
+  return v;
 }
 
-/* numeric promotion:
-   - int op int -> int (except DIV -> float; we choose Python-like: / gives float)
-   - float involved -> float
-*/
-static void promote_numeric(char out[16], const char *a, const char *b, int is_div) {
-    if (!is_numeric(a) || !is_numeric(b)) type_error("Arithmetic requires numeric types");
-    if (is_div) { set_type(out, "float"); return; }
-    if (strcmp(a, "float") == 0 || strcmp(b, "float") == 0) set_type(out, "float");
-    else set_type(out, "int");
+static Expr* make_lit(Value v) {
+  Expr *e = (Expr*)calloc(1, sizeof(Expr));
+  if (!e) exit(1);
+  e->kind = EXPR_LIT;
+  e->lit = v;
+  return e;
 }
+
+static Expr* make_var(char *name) {
+  Expr *e = (Expr*)calloc(1, sizeof(Expr));
+  if (!e) exit(1);
+  e->kind = EXPR_VAR;
+  e->name = name;
+  return e;
+}
+
+static Expr* make_bin(int op, Expr *l, Expr *r) {
+  Expr *e = (Expr*)calloc(1, sizeof(Expr));
+  if (!e) exit(1);
+  e->kind = EXPR_BIN;
+  e->op = op;
+  e->left = l;
+  e->right = r;
+  return e;
+}
+
+static StmtList* stmtlist_append(StmtList *list, Stmt *stmt) {
+  StmtList *node = (StmtList*)calloc(1, sizeof(StmtList));
+  if (!node) exit(1);
+  node->stmt = stmt;
+  node->next = NULL;
+  if (!list) return node;
+  StmtList *cur = list;
+  while (cur->next) cur = cur->next;
+  cur->next = node;
+  return list;
+}
+
+static Stmt* make_block(StmtList *list) {
+  Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+  if (!s) exit(1);
+  s->kind = STMT_BLOCK;
+  s->list = list;
+  return s;
+}
+
+static Stmt* make_assign(int kind, char *name, Expr *expr) {
+  Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+  if (!s) exit(1);
+  s->kind = kind;
+  s->name = name;
+  s->expr = expr;
+  return s;
+}
+
+static Stmt* make_emit(Expr *expr) {
+  Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+  if (!s) exit(1);
+  s->kind = STMT_EMIT;
+  s->expr = expr;
+  return s;
+}
+
+static Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block) {
+  Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+  if (!s) exit(1);
+  s->kind = STMT_BRANCH;
+  s->cond = cond;
+  s->then_block = then_block;
+  s->else_block = else_block;
+  return s;
+}
+
+static Stmt* make_repeat(Expr *cond, Stmt *body) {
+  Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+  if (!s) exit(1);
+  s->kind = STMT_REPEAT;
+  s->cond = cond;
+  s->body = body;
+  return s;
+}
+
+static Value eval_expr(Expr *e);
+static void exec_stmt(Stmt *s);
+
+static Value symbol_to_value(Symbol *sym) {
+  if (strcmp(sym->type, "int") == 0) return value_num(sym->num_value, "int");
+  if (strcmp(sym->type, "float") == 0) return value_num(sym->num_value, "float");
+  if (strcmp(sym->type, "bool") == 0) return value_bool(sym->bool_value);
+  if (strcmp(sym->type, "string") == 0) return value_string(sym->str_value);
+  runtime_error("Unknown symbol type");
+  return value_num(0, "int");
+}
+
+static void store_value_note(const char *name, Value v) {
+  if (strcmp(v.type, "int") == 0 || strcmp(v.type, "float") == 0)
+    declare_or_update_current_scope_value(name, v.type, v.num, NULL, 0);
+  else if (strcmp(v.type, "bool") == 0)
+    declare_or_update_current_scope_value(name, "bool", 0, NULL, v.boolean);
+  else if (strcmp(v.type, "string") == 0)
+    declare_or_update_current_scope_value(name, "string", 0, v.str, 0);
+  else
+    runtime_error("Unsupported value type in note");
+}
+
+static void store_value_stage(const char *name, Value v) {
+  if (strcmp(v.type, "int") == 0 || strcmp(v.type, "float") == 0)
+    insert_or_update_value(name, v.type, v.num, NULL, 0);
+  else if (strcmp(v.type, "bool") == 0)
+    insert_or_update_value(name, "bool", 0, NULL, v.boolean);
+  else if (strcmp(v.type, "string") == 0)
+    insert_or_update_value(name, "string", 0, v.str, 0);
+  else
+    runtime_error("Unsupported value type in stage");
+}
+
+static Value eval_bin_numeric(int op, Value a, Value b) {
+  if (!is_numeric_type(a.type) || !is_numeric_type(b.type)) runtime_error("Arithmetic requires numeric types");
+  int result_is_float = (strcmp(a.type, "float") == 0 || strcmp(b.type, "float") == 0 || op == OP_DIV);
+  double x = a.num;
+  double y = b.num;
+  double r = 0;
+  if (op == OP_PLUS) r = x + y;
+  else if (op == OP_MINUS) r = x - y;
+  else if (op == OP_MUL) r = x * y;
+  else if (op == OP_DIV) r = x / y;
+  if (result_is_float) return value_num(r, "float");
+  return value_num((double)((long long)r), "int");
+}
+
+static Value eval_expr(Expr *e) {
+  if (!e) runtime_error("Null expression");
+  if (e->kind == EXPR_LIT) return e->lit;
+  if (e->kind == EXPR_VAR) {
+    Symbol *sym = get_symbol_or_error(e->name);
+    return symbol_to_value(sym);
+  }
+  if (e->kind == EXPR_BIN) {
+    if (e->op == OP_AND || e->op == OP_OR) {
+      Value left = eval_expr(e->left);
+      if (strcmp(left.type, "bool") != 0) runtime_error("Logical operators require bool");
+      if (e->op == OP_AND) {
+        if (!left.boolean) return value_bool(0);
+        Value right = eval_expr(e->right);
+        if (strcmp(right.type, "bool") != 0) runtime_error("Logical operators require bool");
+        return value_bool(left.boolean && right.boolean);
+      } else {
+        if (left.boolean) return value_bool(1);
+        Value right = eval_expr(e->right);
+        if (strcmp(right.type, "bool") != 0) runtime_error("Logical operators require bool");
+        return value_bool(left.boolean || right.boolean);
+      }
+    }
+
+    Value a = eval_expr(e->left);
+    Value b = eval_expr(e->right);
+
+    if (e->op == OP_PLUS || e->op == OP_MINUS || e->op == OP_MUL || e->op == OP_DIV) {
+      return eval_bin_numeric(e->op, a, b);
+    }
+
+    if (e->op == OP_LT || e->op == OP_GT) {
+      if (!is_numeric_type(a.type) || !is_numeric_type(b.type)) runtime_error("Comparison requires numeric types");
+      if (e->op == OP_LT) return value_bool(a.num < b.num);
+      return value_bool(a.num > b.num);
+    }
+
+    if (e->op == OP_EQ) {
+      if (is_numeric_type(a.type) && is_numeric_type(b.type)) return value_bool(a.num == b.num);
+      if (strcmp(a.type, "bool") == 0 && strcmp(b.type, "bool") == 0) return value_bool(a.boolean == b.boolean);
+      if (strcmp(a.type, "string") == 0 && strcmp(b.type, "string") == 0) return value_bool(strcmp(a.str, b.str) == 0);
+      runtime_error("== operands must be comparable");
+    }
+  }
+  runtime_error("Unknown expression kind");
+  return value_num(0, "int");
+}
+
+static void exec_stmt_list(StmtList *list) {
+  for (StmtList *cur = list; cur; cur = cur->next) exec_stmt(cur->stmt);
+}
+
+static void print_value(Value v) {
+  if (strcmp(v.type, "int") == 0) {
+    fprintf(yyout ? yyout : stdout, "%lld\n", (long long)v.num);
+    return;
+  }
+  if (strcmp(v.type, "float") == 0) {
+    fprintf(yyout ? yyout : stdout, "%g\n", v.num);
+    return;
+  }
+  if (strcmp(v.type, "bool") == 0) {
+    fprintf(yyout ? yyout : stdout, "%s\n", v.boolean ? "true" : "false");
+    return;
+  }
+  if (strcmp(v.type, "string") == 0) {
+    fprintf(yyout ? yyout : stdout, "%s\n", v.str);
+    return;
+  }
+  runtime_error("Unknown value type for emit");
+}
+
+static void exec_stmt(Stmt *s) {
+  if (!s) return;
+  switch (s->kind) {
+    case STMT_NOTE: {
+      Value v = eval_expr(s->expr);
+      store_value_note(s->name, v);
+      break;
+    }
+    case STMT_STAGE: {
+      Value v = eval_expr(s->expr);
+      store_value_stage(s->name, v);
+      break;
+    }
+    case STMT_EMIT: {
+      Value v = eval_expr(s->expr);
+      print_value(v);
+      break;
+    }
+    case STMT_BLOCK: {
+      push_scope();
+      exec_stmt_list(s->list);
+      pop_scope();
+      break;
+    }
+    case STMT_BRANCH: {
+      Value c = eval_expr(s->cond);
+      if (strcmp(c.type, "bool") != 0) runtime_error("branch condition must be bool");
+      if (c.boolean) exec_stmt(s->then_block);
+      else if (s->else_block) exec_stmt(s->else_block);
+      break;
+    }
+    case STMT_REPEAT: {
+      for (;;) {
+        Value c = eval_expr(s->cond);
+        if (strcmp(c.type, "bool") != 0) runtime_error("repeat condition must be bool");
+        if (!c.boolean) break;
+        exec_stmt(s->body);
+      }
+      break;
+    }
+    default:
+      runtime_error("Unknown statement kind");
+  }
+}
+
+static Stmt *g_main_block = NULL;
 
 
 /* Line 189 of yacc.c  */
-#line 125 "orchestra.tab.c"
+#line 416 "orchestra.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -193,15 +484,18 @@ typedef union YYSTYPE
 {
 
 /* Line 214 of yacc.c  */
-#line 52 "orchestra.y"
+#line 343 "orchestra.y"
 
-    struct { char type[16]; } expr;
-    char* sval;
+  struct { double num; int is_float; } numlit;
+  char *sval;
+  struct Expr *expr;
+  struct Stmt *stmt;
+  struct StmtList *stmt_list;
 
 
 
 /* Line 214 of yacc.c  */
-#line 205 "orchestra.tab.c"
+#line 499 "orchestra.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -213,7 +507,7 @@ typedef union YYSTYPE
 
 
 /* Line 264 of yacc.c  */
-#line 217 "orchestra.tab.c"
+#line 511 "orchestra.tab.c"
 
 #ifdef short
 # undef short
@@ -433,11 +727,11 @@ union yyalloc
 /* YYNTOKENS -- Number of terminals.  */
 #define YYNTOKENS  38
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  13
+#define YYNNTS  11
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  34
+#define YYNRULES  32
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  72
+#define YYNSTATES  70
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
@@ -486,37 +780,36 @@ static const yytype_uint8 yytranslate[] =
    YYRHS.  */
 static const yytype_uint8 yyprhs[] =
 {
-       0,     0,     3,     6,     7,     8,    14,    19,    20,    24,
-      26,    27,    32,    35,    36,    42,    48,    52,    54,    56,
-      62,    70,    76,    80,    84,    88,    92,    96,   100,   104,
-     108,   112,   116,   118,   120
+       0,     0,     3,     6,     7,    12,    17,    18,    22,    24,
+      28,    31,    32,    38,    44,    48,    50,    52,    58,    66,
+      72,    76,    80,    84,    88,    92,    96,   100,   104,   108,
+     112,   114,   116
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      39,     0,    -1,    39,    40,    -1,    -1,    -1,     3,    37,
-      41,    42,    44,    -1,     4,    31,    43,    32,    -1,    -1,
-      43,    30,    37,    -1,    37,    -1,    -1,    33,    45,    46,
-      34,    -1,    46,    47,    -1,    -1,     6,    37,    20,    50,
-      29,    -1,     8,    37,    20,    50,    29,    -1,     5,    50,
-      29,    -1,    48,    -1,    49,    -1,    11,    31,    50,    32,
-      44,    -1,    11,    31,    50,    32,    44,    12,    44,    -1,
-      13,    31,    50,    32,    44,    -1,    50,    23,    50,    -1,
-      50,    24,    50,    -1,    50,    25,    50,    -1,    50,    26,
-      50,    -1,    50,    27,    50,    -1,    50,    28,    50,    -1,
-      50,    19,    50,    -1,    50,    21,    50,    -1,    50,    22,
-      50,    -1,    31,    50,    32,    -1,    35,    -1,    36,    -1,
-      37,    -1
+      39,     0,    -1,    39,    40,    -1,    -1,     3,    37,    41,
+      43,    -1,     4,    31,    42,    32,    -1,    -1,    42,    30,
+      37,    -1,    37,    -1,    33,    44,    34,    -1,    44,    45,
+      -1,    -1,     6,    37,    20,    48,    29,    -1,     8,    37,
+      20,    48,    29,    -1,     5,    48,    29,    -1,    46,    -1,
+      47,    -1,    11,    31,    48,    32,    43,    -1,    11,    31,
+      48,    32,    43,    12,    43,    -1,    13,    31,    48,    32,
+      43,    -1,    48,    23,    48,    -1,    48,    24,    48,    -1,
+      48,    25,    48,    -1,    48,    26,    48,    -1,    48,    27,
+      48,    -1,    48,    28,    48,    -1,    48,    19,    48,    -1,
+      48,    21,    48,    -1,    48,    22,    48,    -1,    31,    48,
+      32,    -1,    35,    -1,    36,    -1,    37,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    82,    82,    83,    88,    87,   100,   101,   105,   110,
-     116,   116,   120,   121,   125,   133,   141,   144,   145,   150,
-     155,   164,   173,   181,   189,   197,   206,   216,   226,   235,
-     244,   254,   257,   260,   263
+       0,   378,   378,   379,   383,   390,   391,   395,   397,   403,
+     407,   408,   412,   415,   418,   421,   422,   427,   429,   435,
+     441,   443,   445,   447,   450,   452,   454,   457,   459,   462,
+     465,   468,   471
 };
 #endif
 
@@ -531,9 +824,8 @@ static const char *const yytname[] =
   "AND", "OR", "PLUS", "MINUS", "MUL", "DIV", "LT", "GT", "SEMICOLON",
   "COMMA", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "NUMBER",
   "STRING_LITERAL", "IDENTIFIER", "$accept", "program", "flow_definition",
-  "$@1", "parameter_part", "parameter_list", "block", "$@2",
-  "statement_list", "statement", "branch_statement", "repeat_statement",
-  "expression", 0
+  "parameter_part", "parameter_list", "block", "statement_list",
+  "statement", "branch_statement", "repeat_statement", "expression", 0
 };
 #endif
 
@@ -552,19 +844,19 @@ static const yytype_uint16 yytoknum[] =
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    38,    39,    39,    41,    40,    42,    42,    43,    43,
-      45,    44,    46,    46,    47,    47,    47,    47,    47,    48,
-      48,    49,    50,    50,    50,    50,    50,    50,    50,    50,
-      50,    50,    50,    50,    50
+       0,    38,    39,    39,    40,    41,    41,    42,    42,    43,
+      44,    44,    45,    45,    45,    45,    45,    46,    46,    47,
+      48,    48,    48,    48,    48,    48,    48,    48,    48,    48,
+      48,    48,    48
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const yytype_uint8 yyr2[] =
 {
-       0,     2,     2,     0,     0,     5,     4,     0,     3,     1,
-       0,     4,     2,     0,     5,     5,     3,     1,     1,     5,
-       7,     5,     3,     3,     3,     3,     3,     3,     3,     3,
-       3,     3,     1,     1,     1
+       0,     2,     2,     0,     4,     4,     0,     3,     1,     3,
+       2,     0,     5,     5,     3,     1,     1,     5,     7,     5,
+       3,     3,     3,     3,     3,     3,     3,     3,     3,     3,
+       1,     1,     1
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -572,21 +864,20 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       3,     0,     1,     0,     2,     4,     7,     0,     0,     0,
-      10,     5,     9,     0,    13,     0,     6,     0,     8,     0,
-       0,     0,     0,     0,    11,    12,    17,    18,     0,    32,
-      33,    34,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,    16,     0,     0,
-       0,     0,    31,    28,    29,    30,    22,    23,    24,    25,
-      26,    27,     0,     0,     0,     0,    14,    15,    19,    21,
-       0,    20
+       3,     0,     1,     0,     2,     6,     0,     0,     0,    11,
+       4,     8,     0,     0,     0,     5,     0,     0,     0,     0,
+       0,     9,    10,    15,    16,     7,     0,    30,    31,    32,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,    14,     0,     0,     0,     0,
+      29,    26,    27,    28,    20,    21,    22,    23,    24,    25,
+       0,     0,     0,     0,    12,    13,    17,    19,     0,    18
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-      -1,     1,     4,     6,     8,    13,    11,    14,    17,    25,
-      26,    27,    32
+      -1,     1,     4,     7,    12,    10,    13,    22,    23,    24,
+      30
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
@@ -594,21 +885,20 @@ static const yytype_int8 yydefgoto[] =
 #define YYPACT_NINF -33
 static const yytype_int8 yypact[] =
 {
-     -33,     4,   -33,   -32,   -33,   -33,     7,    -7,    17,    14,
-     -33,   -33,   -33,    68,   -33,    25,   -33,    -5,   -33,   -10,
-      26,    39,    77,    79,   -33,   -33,   -33,   -33,   -10,   -33,
-     -33,   -33,    45,    89,   110,   -10,   -10,     9,   -10,   -10,
-     -10,   -10,   -10,   -10,   -10,   -10,   -10,   -33,   -10,   -10,
-      21,    33,   -33,   101,    88,    78,    13,    13,   -33,   -33,
-      96,    96,    56,    67,    17,    17,   -33,   -33,    75,   -33,
-      17,   -33
+     -33,     4,   -33,   -32,   -33,     7,    -7,    17,    14,   -33,
+     -33,   -33,    68,    -5,    25,   -33,   -10,    26,    39,    77,
+      79,   -33,   -33,   -33,   -33,   -33,   -10,   -33,   -33,   -33,
+      45,    89,   110,   -10,   -10,     9,   -10,   -10,   -10,   -10,
+     -10,   -10,   -10,   -10,   -10,   -33,   -10,   -10,    21,    33,
+     -33,   101,    88,    78,    13,    13,   -33,   -33,    96,    96,
+      56,    67,    17,    17,   -33,   -33,    75,   -33,    17,   -33
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -33,   -33,   -33,   -33,   -33,   -33,    53,   -33,   -33,   -33,
-     -33,   -33,   -26
+     -33,   -33,   -33,   -33,   -33,    55,   -33,   -33,   -33,   -33,
+     -24
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
@@ -618,27 +908,27 @@ static const yytype_int8 yypgoto[] =
 #define YYTABLE_NINF -1
 static const yytype_uint8 yytable[] =
 {
-      19,    20,    37,    21,     2,     5,    22,     3,    23,    50,
-      51,     7,    53,    54,    55,    56,    57,    58,    59,    60,
-      61,    28,    62,    63,     9,    29,    30,    31,    38,    24,
-      39,    40,    41,    42,    43,    44,    45,    46,    43,    44,
-      38,    52,    39,    40,    41,    42,    43,    44,    45,    46,
-      10,    12,    38,    64,    39,    40,    41,    42,    43,    44,
-      45,    46,    18,    33,    38,    65,    39,    40,    41,    42,
-      43,    44,    45,    46,    47,    38,    34,    39,    40,    41,
-      42,    43,    44,    45,    46,    66,    38,    70,    39,    40,
-      41,    42,    43,    44,    45,    46,    67,    38,    15,    39,
-      16,    41,    42,    43,    44,    45,    46,    38,    35,    48,
-      36,    41,    42,    43,    44,    45,    46,    68,    69,    41,
-      42,    43,    44,    71,    41,    42,    43,    44,    45,    46,
-      49
+      16,    17,    35,    18,     2,     5,    19,     3,    20,    48,
+      49,     6,    51,    52,    53,    54,    55,    56,    57,    58,
+      59,    26,    60,    61,     8,    27,    28,    29,    36,    21,
+      37,    38,    39,    40,    41,    42,    43,    44,    41,    42,
+      36,    50,    37,    38,    39,    40,    41,    42,    43,    44,
+       9,    11,    36,    62,    37,    38,    39,    40,    41,    42,
+      43,    44,    25,    31,    36,    63,    37,    38,    39,    40,
+      41,    42,    43,    44,    45,    36,    32,    37,    38,    39,
+      40,    41,    42,    43,    44,    64,    36,    68,    37,    38,
+      39,    40,    41,    42,    43,    44,    65,    36,    14,    37,
+      15,    39,    40,    41,    42,    43,    44,    36,    33,    46,
+      34,    39,    40,    41,    42,    43,    44,    66,    67,    39,
+      40,    41,    42,    69,    39,    40,    41,    42,    43,    44,
+      47
 };
 
 static const yytype_uint8 yycheck[] =
 {
-       5,     6,    28,     8,     0,    37,    11,     3,    13,    35,
-      36,     4,    38,    39,    40,    41,    42,    43,    44,    45,
-      46,    31,    48,    49,    31,    35,    36,    37,    19,    34,
+       5,     6,    26,     8,     0,    37,    11,     3,    13,    33,
+      34,     4,    36,    37,    38,    39,    40,    41,    42,    43,
+      44,    31,    46,    47,    31,    35,    36,    37,    19,    34,
       21,    22,    23,    24,    25,    26,    27,    28,    25,    26,
       19,    32,    21,    22,    23,    24,    25,    26,    27,    28,
       33,    37,    19,    32,    21,    22,    23,    24,    25,    26,
@@ -647,8 +937,8 @@ static const yytype_uint8 yycheck[] =
       24,    25,    26,    27,    28,    29,    19,    12,    21,    22,
       23,    24,    25,    26,    27,    28,    29,    19,    30,    21,
       32,    23,    24,    25,    26,    27,    28,    19,    31,    20,
-      31,    23,    24,    25,    26,    27,    28,    64,    65,    23,
-      24,    25,    26,    70,    23,    24,    25,    26,    27,    28,
+      31,    23,    24,    25,    26,    27,    28,    62,    63,    23,
+      24,    25,    26,    68,    23,    24,    25,    26,    27,    28,
       20
 };
 
@@ -656,14 +946,13 @@ static const yytype_uint8 yycheck[] =
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,    39,     0,     3,    40,    37,    41,     4,    42,    31,
-      33,    44,    37,    43,    45,    30,    32,    46,    37,     5,
-       6,     8,    11,    13,    34,    47,    48,    49,    31,    35,
-      36,    37,    50,    37,    37,    31,    31,    50,    19,    21,
-      22,    23,    24,    25,    26,    27,    28,    29,    20,    20,
-      50,    50,    32,    50,    50,    50,    50,    50,    50,    50,
-      50,    50,    50,    50,    32,    32,    29,    29,    44,    44,
-      12,    44
+       0,    39,     0,     3,    40,    37,     4,    41,    31,    33,
+      43,    37,    42,    44,    30,    32,     5,     6,     8,    11,
+      13,    34,    45,    46,    47,    37,    31,    35,    36,    37,
+      48,    37,    37,    31,    31,    48,    19,    21,    22,    23,
+      24,    25,    26,    27,    28,    29,    20,    20,    48,    48,
+      32,    48,    48,    48,    48,    48,    48,    48,    48,    48,
+      48,    48,    32,    32,    29,    29,    43,    43,    12,    43
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -1477,274 +1766,185 @@ yyreduce:
         case 4:
 
 /* Line 1455 of yacc.c  */
-#line 88 "orchestra.y"
+#line 384 "orchestra.y"
     {
-          push_scope();   // Flow scope begins here
-      ;}
+      if (!g_main_block) g_main_block = (yyvsp[(4) - (4)].stmt);
+      free((yyvsp[(2) - (4)].sval));
+    ;}
     break;
 
-  case 5:
+  case 7:
 
 /* Line 1455 of yacc.c  */
-#line 93 "orchestra.y"
-    {
-          pop_scope();    // End flow scope
-          fprintf(yyout, "Parsed flow: %s\n", (yyvsp[(2) - (5)].sval));
-          free((yyvsp[(2) - (5)].sval));
-      ;}
+#line 396 "orchestra.y"
+    { free((yyvsp[(3) - (3)].sval)); ;}
     break;
 
   case 8:
 
 /* Line 1455 of yacc.c  */
-#line 106 "orchestra.y"
-    { /* infer later: start as unknown */
-          declare_or_update_current_scope((yyvsp[(3) - (3)].sval), "unknown");
-          free((yyvsp[(3) - (3)].sval));
-        ;}
+#line 398 "orchestra.y"
+    { free((yyvsp[(1) - (1)].sval)); ;}
     break;
 
   case 9:
 
 /* Line 1455 of yacc.c  */
-#line 111 "orchestra.y"
-    { declare_or_update_current_scope((yyvsp[(1) - (1)].sval), "unknown"); free((yyvsp[(1) - (1)].sval)); ;}
+#line 403 "orchestra.y"
+    { (yyval.stmt) = make_block((yyvsp[(2) - (3)].stmt_list)); ;}
     break;
 
   case 10:
 
 /* Line 1455 of yacc.c  */
-#line 116 "orchestra.y"
-    { push_scope(); ;}
+#line 407 "orchestra.y"
+    { (yyval.stmt_list) = stmtlist_append((yyvsp[(1) - (2)].stmt_list), (yyvsp[(2) - (2)].stmt)); ;}
     break;
 
   case 11:
 
 /* Line 1455 of yacc.c  */
-#line 116 "orchestra.y"
-    { pop_scope(); ;}
+#line 408 "orchestra.y"
+    { (yyval.stmt_list) = NULL; ;}
+    break;
+
+  case 12:
+
+/* Line 1455 of yacc.c  */
+#line 413 "orchestra.y"
+    { (yyval.stmt) = make_assign(STMT_NOTE, (yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr)); ;}
+    break;
+
+  case 13:
+
+/* Line 1455 of yacc.c  */
+#line 416 "orchestra.y"
+    { (yyval.stmt) = make_assign(STMT_STAGE, (yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr)); ;}
     break;
 
   case 14:
 
 /* Line 1455 of yacc.c  */
-#line 126 "orchestra.y"
-    {
-          /* "note" behaves like python binding but scoped: creates/updates in current scope */
-          declare_or_update_current_scope((yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr).type);
-          fprintf(yyout, "note %s : %s\n", (yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr).type);
-          free((yyvsp[(2) - (5)].sval));
-        ;}
+#line 419 "orchestra.y"
+    { (yyval.stmt) = make_emit((yyvsp[(2) - (3)].expr)); ;}
     break;
 
-  case 15:
+  case 17:
 
 /* Line 1455 of yacc.c  */
-#line 134 "orchestra.y"
-    {
-          /* "stage" updates nearest binding; if not exists, create in current scope (python-like) */
-          insert_or_update((yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr).type);
-          fprintf(yyout, "stage %s : %s\n", (yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr).type);
-          free((yyvsp[(2) - (5)].sval));
-        ;}
+#line 428 "orchestra.y"
+    { (yyval.stmt) = make_branch((yyvsp[(3) - (5)].expr), (yyvsp[(5) - (5)].stmt), NULL); ;}
     break;
 
-  case 16:
+  case 18:
 
 /* Line 1455 of yacc.c  */
-#line 142 "orchestra.y"
-    { fprintf(yyout, "emit (%s)\n", (yyvsp[(2) - (3)].expr).type); ;}
+#line 430 "orchestra.y"
+    { (yyval.stmt) = make_branch((yyvsp[(3) - (7)].expr), (yyvsp[(5) - (7)].stmt), (yyvsp[(7) - (7)].stmt)); ;}
     break;
 
   case 19:
 
 /* Line 1455 of yacc.c  */
-#line 151 "orchestra.y"
-    {
-          if (!is_bool((yyvsp[(3) - (5)].expr).type)) type_error("branch condition must be bool");
-          fprintf(yyout, "branch (no else)\n");
-        ;}
+#line 436 "orchestra.y"
+    { (yyval.stmt) = make_repeat((yyvsp[(3) - (5)].expr), (yyvsp[(5) - (5)].stmt)); ;}
     break;
 
   case 20:
 
 /* Line 1455 of yacc.c  */
-#line 156 "orchestra.y"
-    {
-          if (!is_bool((yyvsp[(3) - (7)].expr).type)) type_error("branch condition must be bool");
-          fprintf(yyout, "branch (with else)\n");
-        ;}
+#line 442 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_PLUS, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 21:
 
 /* Line 1455 of yacc.c  */
-#line 165 "orchestra.y"
-    {
-          if (!is_bool((yyvsp[(3) - (5)].expr).type)) type_error("repeat condition must be bool");
-          fprintf(yyout, "repeat loop\n");
-        ;}
+#line 444 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_MINUS, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 22:
 
 /* Line 1455 of yacc.c  */
-#line 174 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) { set_type((yyval.expr).type, inf); }
-          else {
-            promote_numeric((yyval.expr).type, (yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type, 0);
-          }
-        ;}
+#line 446 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_MUL, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 23:
 
 /* Line 1455 of yacc.c  */
-#line 182 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) { set_type((yyval.expr).type, inf); }
-          else {
-            promote_numeric((yyval.expr).type, (yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type, 0);
-          }
-        ;}
+#line 448 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_DIV, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 24:
 
 /* Line 1455 of yacc.c  */
-#line 190 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) { set_type((yyval.expr).type, inf); }
-          else {
-            promote_numeric((yyval.expr).type, (yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type, 0);
-          }
-        ;}
+#line 451 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_LT, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 25:
 
 /* Line 1455 of yacc.c  */
-#line 198 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) { set_type((yyval.expr).type, "float"); }
-          else {
-            promote_numeric((yyval.expr).type, (yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type, 1);
-          }
-        ;}
+#line 453 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_GT, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 26:
 
 /* Line 1455 of yacc.c  */
-#line 207 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) {
-            if (!is_numeric(inf)) type_error("LT comparison supports numeric types");
-          } else {
-            if (!is_numeric((yyvsp[(1) - (3)].expr).type) || !is_numeric((yyvsp[(3) - (3)].expr).type)) type_error("LT comparison supports numeric types");
-          }
-          set_type((yyval.expr).type, "bool");
-        ;}
+#line 455 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_EQ, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 27:
 
 /* Line 1455 of yacc.c  */
-#line 217 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) {
-            if (!is_numeric(inf)) type_error("GT comparison supports numeric types");
-          } else {
-            if (!is_numeric((yyvsp[(1) - (3)].expr).type) || !is_numeric((yyvsp[(3) - (3)].expr).type)) type_error("GT comparison supports numeric types");
-          }
-          set_type((yyval.expr).type, "bool");
-        ;}
+#line 458 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_AND, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 28:
 
 /* Line 1455 of yacc.c  */
-#line 227 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (!inf && strcmp((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type) != 0) {
-            if (!(is_numeric((yyvsp[(1) - (3)].expr).type) && is_numeric((yyvsp[(3) - (3)].expr).type))) type_error("EQ operands must have same type");
-          }
-          set_type((yyval.expr).type, "bool");
-        ;}
+#line 460 "orchestra.y"
+    { (yyval.expr) = make_bin(OP_OR, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 29:
 
 /* Line 1455 of yacc.c  */
-#line 236 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) { if (strcmp(inf, "bool") != 0) type_error("&& requires bool"); }
-          else {
-            if (!is_bool((yyvsp[(1) - (3)].expr).type) || !is_bool((yyvsp[(3) - (3)].expr).type)) type_error("&& requires bool");
-          }
-          set_type((yyval.expr).type, "bool");
-        ;}
+#line 463 "orchestra.y"
+    { (yyval.expr) = (yyvsp[(2) - (3)].expr); ;}
     break;
 
   case 30:
 
 /* Line 1455 of yacc.c  */
-#line 245 "orchestra.y"
-    {
-          const char* inf = unify_unknown((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type);
-          if (inf) { if (strcmp(inf, "bool") != 0) type_error("|| requires bool"); }
-          else {
-            if (!is_bool((yyvsp[(1) - (3)].expr).type) || !is_bool((yyvsp[(3) - (3)].expr).type)) type_error("|| requires bool");
-          }
-          set_type((yyval.expr).type, "bool");
-        ;}
+#line 466 "orchestra.y"
+    { (yyval.expr) = make_lit(value_num((yyvsp[(1) - (1)].numlit).num, (yyvsp[(1) - (1)].numlit).is_float ? "float" : "int")); ;}
     break;
 
   case 31:
 
 /* Line 1455 of yacc.c  */
-#line 255 "orchestra.y"
-    { set_type((yyval.expr).type, (yyvsp[(2) - (3)].expr).type); ;}
+#line 469 "orchestra.y"
+    { (yyval.expr) = make_lit(value_string((yyvsp[(1) - (1)].sval))); free((yyvsp[(1) - (1)].sval)); ;}
     break;
 
   case 32:
 
 /* Line 1455 of yacc.c  */
-#line 258 "orchestra.y"
-    { set_type((yyval.expr).type, (yyvsp[(1) - (1)].expr).type); ;}
-    break;
-
-  case 33:
-
-/* Line 1455 of yacc.c  */
-#line 261 "orchestra.y"
-    { set_type((yyval.expr).type, (yyvsp[(1) - (1)].expr).type); ;}
-    break;
-
-  case 34:
-
-/* Line 1455 of yacc.c  */
-#line 264 "orchestra.y"
-    {
-          const char *t = get_type_or_error((yyvsp[(1) - (1)].sval));
-          set_type((yyval.expr).type, t);
-          free((yyvsp[(1) - (1)].sval));
-        ;}
+#line 472 "orchestra.y"
+    { (yyval.expr) = make_var((yyvsp[(1) - (1)].sval)); ;}
     break;
 
 
 
 /* Line 1455 of yacc.c  */
-#line 1748 "orchestra.tab.c"
+#line 1948 "orchestra.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -1956,7 +2156,7 @@ yyreturn:
 
 
 /* Line 1675 of yacc.c  */
-#line 271 "orchestra.y"
+#line 475 "orchestra.y"
 
 
 int main(int argc, char *argv[]) {
@@ -1978,6 +2178,10 @@ int main(int argc, char *argv[]) {
 
     /* global scope already 0; flow blocks will push/pop */
     yyparse();
+
+    if (g_main_block) {
+      exec_stmt(g_main_block);
+    }
 
     fclose(input);
     fclose(output);

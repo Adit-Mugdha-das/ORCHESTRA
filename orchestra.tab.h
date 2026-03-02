@@ -84,15 +84,18 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 52 "orchestra.y"
+#line 343 "orchestra.y"
 
-    struct { char type[16]; } expr;
-    char* sval;
+  struct { double num; int is_float; } numlit;
+  char *sval;
+  struct Expr *expr;
+  struct Stmt *stmt;
+  struct StmtList *stmt_list;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 96 "orchestra.tab.h"
+#line 99 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

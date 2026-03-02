@@ -47,17 +47,29 @@
 "}"         return RBRACE;
 
 [0-9]+\.[0-9]+ {
-    strcpy(yylval.expr.type, "float");
+    yylval.numlit.num = atof(yytext);
+    yylval.numlit.is_float = 1;
     return NUMBER;
 }
 
 [0-9]+ {
-    strcpy(yylval.expr.type, "int");
+    yylval.numlit.num = atof(yytext);
+    yylval.numlit.is_float = 0;
     return NUMBER;
 }
 
 \"([^\\\"]|\\.)*\" {
-    strcpy(yylval.expr.type, "string");
+    /* store string literal without surrounding quotes */
+    int n = yyleng;
+    char *s = (char*)malloc((size_t)n);
+    if (!s) exit(1);
+    if (n >= 2) {
+        memcpy(s, yytext + 1, (size_t)(n - 2));
+        s[n - 2] = '\0';
+    } else {
+        s[0] = '\0';
+    }
+    yylval.sval = s;
     return STRING_LITERAL;
 }
 

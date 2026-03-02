@@ -850,29 +850,41 @@ case 34:
 YY_RULE_SETUP
 #line 49 "orchestra.l"
 {
-    strcpy(yylval.expr.type, "float");
+    yylval.numlit.num = atof(yytext);
+    yylval.numlit.is_float = 1;
     return NUMBER;
 }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 54 "orchestra.l"
+#line 55 "orchestra.l"
 {
-    strcpy(yylval.expr.type, "int");
+    yylval.numlit.num = atof(yytext);
+    yylval.numlit.is_float = 0;
     return NUMBER;
 }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 59 "orchestra.l"
+#line 61 "orchestra.l"
 {
-    strcpy(yylval.expr.type, "string");
+    /* store string literal without surrounding quotes */
+    int n = yyleng;
+    char *s = (char*)malloc((size_t)n);
+    if (!s) exit(1);
+    if (n >= 2) {
+        memcpy(s, yytext + 1, (size_t)(n - 2));
+        s[n - 2] = '\0';
+    } else {
+        s[0] = '\0';
+    }
+    yylval.sval = s;
     return STRING_LITERAL;
 }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 64 "orchestra.l"
+#line 76 "orchestra.l"
 {
     yylval.sval = strdup(yytext);
     return IDENTIFIER;
@@ -880,22 +892,22 @@ YY_RULE_SETUP
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 69 "orchestra.l"
+#line 81 "orchestra.l"
 ;
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 71 "orchestra.l"
+#line 83 "orchestra.l"
 {
     printf("Invalid token: %s\n", yytext);
 }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 75 "orchestra.l"
+#line 87 "orchestra.l"
 ECHO;
 	YY_BREAK
-#line 899 "lex.yy.c"
+#line 911 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1781,4 +1793,4 @@ int main()
 	return 0;
 	}
 #endif
-#line 75 "orchestra.l"
+#line 87 "orchestra.l"
