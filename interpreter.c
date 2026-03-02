@@ -62,6 +62,14 @@ typedef struct Value {
 
 static FILE *g_out = NULL;
 static int g_loop_depth = 0;
+static int g_call_depth = 0;
+
+/* Hard guard against infinite recursion / runaway mutual recursion. */
+/*
+    Keep this fairly low: the interpreter uses real C call stack frames per flow
+    call, so a huge limit can still stack-overflow before the guard triggers.
+*/
+static const int g_max_call_depth = 200;
 
 typedef enum {
     SIG_OK = 0,
@@ -90,7 +98,20 @@ static FlowHandle* find_flow_handle(const char *name) {
 static void runtime_error(const char *msg) {
     FILE *out = g_out ? g_out : stdout;
     fprintf(out, "Runtime Error: %s\n", msg);
+    fflush(out);
+
+    /* Also print to stderr so users see errors when running from the console. */
+    if (out != stderr) {
+        fprintf(stderr, "Runtime Error: %s\n", msg);
+        fflush(stderr);
+    }
     exit(1);
+}
+
+static void recursion_error(const char *callee) {
+    char buf[256];
+    snprintf(buf, sizeof(buf), "Recursion limit exceeded (max %d) while calling '%s'", g_max_call_depth, callee ? callee : "<unknown>");
+    runtime_error(buf);
 }
 
 static int is_numeric_type(const char *t) {
@@ -383,6 +404,12 @@ static Value eval_expr(Expr *e) {
         FlowHandle *flow = find_flow_handle(e->callee);
         if (!flow) runtime_error("Call to undefined flow");
 
+        if (g_call_depth >= g_max_call_depth) {
+            free(flow);
+            recursion_error(e->callee);
+        }
+        g_call_depth++;
+
         /* Save/restore return context for nested calls */
         Value prev_ret = g_return_value;
         int prev_has = g_has_return;
@@ -411,6 +438,8 @@ static Value eval_expr(Expr *e) {
 
         g_return_value = prev_ret;
         g_has_return = prev_has;
+
+        g_call_depth--;
 
         return outv;
     }

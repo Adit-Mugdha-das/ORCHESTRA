@@ -1,3 +1,1 @@
-0
-1
-2
+Runtime Error: Recursion limit exceeded (max 200) while calling 'infinite'
