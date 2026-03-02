@@ -17,6 +17,7 @@ static Stmt *g_main_block = NULL;
 
 /* When parsing inside a class/ensemble, flow names are qualified as "Class.method". */
 static char *g_current_class = NULL;
+static FieldList *g_current_symphony_fields = NULL;
 
 static char *qualify_name(const char *a, const char *b) {
   char buf[512];
@@ -98,17 +99,29 @@ symphony_definition:
     {
       /* Enter class/ensemble scope for name qualification. */
       g_current_class = $2;
+      g_current_symphony_fields = NULL;
     }
     LBRACE symphony_members RBRACE
     {
+      /* Make symphony constructible (constructor + fields), like a class with data. */
+      register_ensemble($2, g_current_symphony_fields);
+      g_current_symphony_fields = NULL;
       /* Exit class/ensemble scope. */
       g_current_class = NULL;
     }
     ;
 
 symphony_members:
-      symphony_members flow_definition
+      symphony_members symphony_member
     | /* empty */
+    ;
+
+symphony_member:
+      flow_definition
+    | type_spec IDENTIFIER SEMICOLON
+      {
+        g_current_symphony_fields = fieldlist_append(g_current_symphony_fields, $1, $2);
+      }
     ;
 
 /* ---- ensemble (struct-like declaration MVP) ----

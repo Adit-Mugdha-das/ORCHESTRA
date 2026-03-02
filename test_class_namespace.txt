@@ -19,15 +19,26 @@ symphony Text {
   }
 }
 
+symphony Box {
+  int w;
+  int h;
+
+  flow area take(b) {
+    return b.w * b.h;
+  }
+}
+
 flow main take() {
   emit Math.add(2, 3);
   emit Math.mul(6, 7);
   emit Text.hello();
 
-  note p = Person();
-  stage p.age = 20;
-  stage p.name = "Ali";
+  note p = Person(20, "Ali");
   emit p.age;
   emit p.name;
   emit p;
+
+  note b = Box(6, 7);
+  emit b;
+  emit Box.area(b);
 }

@@ -268,6 +268,18 @@ static StructInstance* make_struct_instance(const char *type_name) {
     return inst;
 }
 
+static int fieldlist_length(FieldList *f) {
+    int n = 0;
+    for (; f; f = f->next) n++;
+    return n;
+}
+
+static int exprlist_length(ExprList *e) {
+    int n = 0;
+    for (; e; e = e->next) n++;
+    return n;
+}
+
 Expr* make_lit_num(double num, int is_float) {
     Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
@@ -584,8 +596,30 @@ static Value eval_expr(Expr *e) {
         if (!flow) {
             /* Constructor-like call: TypeName() creates an ensemble instance. */
             if (is_ensemble_type(e->callee)) {
-                if (e->args) runtime_error("Ensemble constructor takes no arguments");
+                EnsembleDef *def = find_ensemble_def(e->callee);
                 StructInstance *inst = make_struct_instance(e->callee);
+
+                int argc = exprlist_length(e->args);
+                int fieldc = fieldlist_length(def ? def->fields : NULL);
+                if (argc != fieldc) {
+                    if (argc == 0 && fieldc == 0) {
+                        return value_struct(e->callee, inst);
+                    }
+                    runtime_error("Constructor argument count mismatch");
+                }
+
+                /* Initialize fields in definition order. */
+                StructFieldValue *fv = inst->fields;
+                FieldList *fd = def ? def->fields : NULL;
+                ExprList *a = e->args;
+                while (fv && fd && a) {
+                    Value av = eval_expr(a->expr);
+                    fv->value = coerce_to_field_type(av, fd->type);
+                    fv = fv->next;
+                    fd = fd->next;
+                    a = a->next;
+                }
+
                 return value_struct(e->callee, inst);
             }
             runtime_error("Call to undefined flow");
