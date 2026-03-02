@@ -72,8 +72,8 @@
      LBRACE = 288,
      RBRACE = 289,
      NUMBER = 290,
-     IDENTIFIER = 291,
-     STRING_LITERAL = 292
+     STRING_LITERAL = 291,
+     IDENTIFIER = 292
    };
 #endif
 
@@ -84,9 +84,9 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 15 "orchestra.y"
+#line 52 "orchestra.y"
 
-    float fval;
+    struct { char type[16]; } expr;
     char* sval;
 
 

@@ -1,6 +1,12 @@
-Variable declared: x
-Variable declared: y
-Stage assignment: x
-Stage assignment: y
-Emit statement
+note x : int
+stage x : float
+stage a : int
+stage b : float
+stage x : float
+stage x : float
+stage x : float
+branch (with else)
+stage x : float
+repeat loop
+emit (float)
 Parsed flow: main

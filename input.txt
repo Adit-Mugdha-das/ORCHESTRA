@@ -1,7 +1,21 @@
-flow main {
+flow main take (a, b) {
     note x = 5;
-    note y = 10;
-    stage x = x + y;
-    stage y = y * 2;
+    stage x = 3.14;        // x changes int -> float (dynamic)
+    stage a = 10;          // a inferred as int
+    stage b = 2.5;         // b inferred as float
+
+    stage x = a + b;       // int + float -> float (promotion)
+
+    branch (x > 5) {        // comparison -> bool
+        stage x = x + 1;
+    }
+    elsewise {
+        stage x = x - 1;
+    }
+
+    repeat (x < 10) {
+        stage x = x + 0.5;
+    }
+
     emit x;
 }

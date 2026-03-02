@@ -34,6 +34,7 @@
 "+"         return PLUS;
 "-"         return MINUS;
 "*"         return MUL;
+"//"[^\n]*  ;
 "/"         return DIV;
 "<"         return LT;
 ">"         return GT;
@@ -45,13 +46,18 @@
 "{"         return LBRACE;
 "}"         return RBRACE;
 
-[0-9]+(\.[0-9]+)? {
-    yylval.fval = atof(yytext);
+[0-9]+\.[0-9]+ {
+    strcpy(yylval.expr.type, "float");
+    return NUMBER;
+}
+
+[0-9]+ {
+    strcpy(yylval.expr.type, "int");
     return NUMBER;
 }
 
 \"([^\\\"]|\\.)*\" {
-    yylval.sval = strdup(yytext);
+    strcpy(yylval.expr.type, "string");
     return STRING_LITERAL;
 }
 
