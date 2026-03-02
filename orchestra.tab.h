@@ -64,16 +64,17 @@
      MUL = 280,
      DIV = 281,
      LT = 282,
-     GT = 283,
-     SEMICOLON = 284,
-     COMMA = 285,
-     LPAREN = 286,
-     RPAREN = 287,
-     LBRACE = 288,
-     RBRACE = 289,
-     NUMBER = 290,
-     STRING_LITERAL = 291,
-     IDENTIFIER = 292
+     LE = 283,
+     GT = 284,
+     SEMICOLON = 285,
+     COMMA = 286,
+     LPAREN = 287,
+     RPAREN = 288,
+     LBRACE = 289,
+     RBRACE = 290,
+     NUMBER = 291,
+     STRING_LITERAL = 292,
+     IDENTIFIER = 293
    };
 #endif
 
@@ -84,7 +85,7 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 343 "orchestra.y"
+#line 344 "orchestra.y"
 
   struct { double num; int is_float; } numlit;
   char *sval;
@@ -95,7 +96,7 @@ typedef union YYSTYPE
 
 
 /* Line 1676 of yacc.c  */
-#line 99 "orchestra.tab.h"
+#line 100 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

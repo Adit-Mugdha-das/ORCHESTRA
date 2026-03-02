@@ -50,7 +50,7 @@ struct Stmt {
 
 enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN };
 enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT };
-enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_GT, OP_EQ, OP_AND, OP_OR };
+enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_EQ, OP_AND, OP_OR };
 
 static void runtime_error(const char *msg) {
   fprintf(yyout ? yyout : stdout, "Runtime Error: %s\n", msg);
@@ -251,9 +251,10 @@ static Value eval_expr(Expr *e) {
       return eval_bin_numeric(e->op, a, b);
     }
 
-    if (e->op == OP_LT || e->op == OP_GT) {
+    if (e->op == OP_LT || e->op == OP_LE || e->op == OP_GT) {
       if (!is_numeric_type(a.type) || !is_numeric_type(b.type)) runtime_error("Comparison requires numeric types");
       if (e->op == OP_LT) return value_bool(a.num < b.num);
+      if (e->op == OP_LE) return value_bool(a.num <= b.num);
       return value_bool(a.num > b.num);
     }
 
@@ -353,7 +354,7 @@ static Stmt *g_main_block = NULL;
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
 
 /* operators/symbols */
-%token EQ ASSIGN AND OR PLUS MINUS MUL DIV LT GT
+%token EQ ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT
 %token SEMICOLON COMMA LPAREN RPAREN LBRACE RBRACE
 
 /* typed tokens */
@@ -368,7 +369,7 @@ static Stmt *g_main_block = NULL;
 %left OR
 %left AND
 %left EQ
-%left LT GT
+%left LT LE GT
 %left PLUS MINUS
 %left MUL DIV
 
@@ -387,7 +388,12 @@ flow_definition:
     }
     ;
 parameter_part:
-      TAKE LPAREN parameter_list RPAREN
+  TAKE LPAREN parameter_list_opt RPAREN
+    | /* empty */
+    ;
+
+parameter_list_opt:
+  parameter_list
     | /* empty */
     ;
 
@@ -449,6 +455,8 @@ expression:
 
     | expression LT expression
       { $$ = make_bin(OP_LT, $1, $3); }
+    | expression LE expression
+      { $$ = make_bin(OP_LE, $1, $3); }
     | expression GT expression
       { $$ = make_bin(OP_GT, $1, $3); }
     | expression EQ expression

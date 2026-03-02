@@ -285,22 +285,22 @@ static void yy_fatal_error YY_PROTO(( yyconst char msg[] ));
 	*yy_cp = '\0'; \
 	yy_c_buf_p = yy_cp;
 
-#define YY_NUM_RULES 40
-#define YY_END_OF_BUFFER 41
-static yyconst short int yy_accept[110] =
+#define YY_NUM_RULES 41
+#define YY_END_OF_BUFFER 42
+static yyconst short int yy_accept[111] =
     {   0,
-        0,    0,   41,   39,   38,   38,   39,   39,   30,   31,
-       23,   21,   29,   22,   25,   35,   28,   26,   18,   27,
-       37,   37,   37,   37,   37,   37,   37,   37,   37,   37,
-       32,   39,   33,   38,    0,   36,    0,   19,   24,    0,
-       35,   17,   37,   37,   37,   37,   37,   37,   37,   37,
-       37,   37,   37,   37,   37,   37,   37,   20,   24,   34,
-       37,   37,   37,   37,   37,   37,   37,   13,   37,   37,
-       37,   37,   37,   37,   37,   15,   37,   37,    3,   37,
-       37,   37,    1,    4,    8,   37,   37,   37,   37,    2,
-       37,   37,   37,    5,   14,   37,   12,    6,   37,    9,
+        0,    0,   42,   40,   39,   39,   40,   40,   31,   32,
+       23,   21,   30,   22,   25,   36,   29,   27,   18,   28,
+       38,   38,   38,   38,   38,   38,   38,   38,   38,   38,
+       33,   40,   34,   39,    0,   37,    0,   19,   24,    0,
+       36,   26,   17,   38,   38,   38,   38,   38,   38,   38,
+       38,   38,   38,   38,   38,   38,   38,   38,   20,   24,
+       35,   38,   38,   38,   38,   38,   38,   38,   13,   38,
+       38,   38,   38,   38,   38,   38,   15,   38,   38,    3,
+       38,   38,   38,    1,    4,    8,   38,   38,   38,   38,
+        2,   38,   38,   38,    5,   14,   38,   12,    6,   38,
 
-       37,   37,   11,   16,   37,   37,   10,    7,    0
+        9,   38,   38,   11,   16,   38,   38,   10,    7,    0
     } ;
 
 static yyconst int yy_ec[256] =
@@ -344,65 +344,65 @@ static yyconst int yy_meta[46] =
         3,    3,    1,    1,    1
     } ;
 
-static yyconst short int yy_base[113] =
+static yyconst short int yy_base[114] =
     {   0,
-        0,    0,  135,  136,   44,   46,   46,  129,  136,  136,
-      136,  136,  136,  136,  120,   39,  136,  136,  115,  136,
+        0,    0,  136,  137,   44,   46,   46,  130,  137,  137,
+      137,  137,  137,  137,  121,   39,  137,  116,  115,  137,
         0,   17,   23,   28,   97,   95,   97,  102,   35,  105,
-      136,   82,  136,   59,   59,  136,  122,  136,    0,  110,
-       53,  136,    0,   88,  100,   83,   90,   81,   77,   82,
-       77,   76,   92,   77,   77,   46,   80,  136,    0,   96,
-       77,   74,   81,   67,   79,   78,   42,    0,   77,   60,
-       75,   63,   71,   68,   71,    0,   72,   55,    0,   61,
-       68,   53,    0,    0,    0,   69,   64,   62,   47,    0,
-       51,   48,   54,    0,    0,   37,    0,    0,   47,    0,
+      137,   82,  137,   59,   59,  137,  122,  137,    0,  110,
+       53,  137,  137,    0,   88,  100,   83,   90,   81,   77,
+       82,   77,   76,   92,   77,   77,   46,   80,  137,    0,
+       96,   77,   74,   81,   67,   79,   78,   42,    0,   77,
+       60,   75,   63,   71,   68,   71,    0,   72,   55,    0,
+       61,   68,   53,    0,    0,    0,   69,   64,   62,   47,
+        0,   51,   48,   54,    0,    0,   37,    0,    0,   47,
 
-       35,   40,    0,    0,   45,   44,    0,    0,  136,   83,
-       66,   86
+        0,   35,   40,    0,    0,   45,   44,    0,    0,  137,
+       83,   66,   86
     } ;
 
-static yyconst short int yy_def[113] =
+static yyconst short int yy_def[114] =
     {   0,
-      109,    1,  109,  109,  109,  109,  110,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      111,  111,  111,  111,  111,  111,  111,  111,  111,  111,
-      109,  109,  109,  109,  110,  109,  110,  109,  112,  109,
-      109,  109,  111,  111,  111,  111,  111,  111,  111,  111,
-      111,  111,  111,  111,  111,  111,  111,  109,  112,  109,
-      111,  111,  111,  111,  111,  111,  111,  111,  111,  111,
-      111,  111,  111,  111,  111,  111,  111,  111,  111,  111,
-      111,  111,  111,  111,  111,  111,  111,  111,  111,  111,
-      111,  111,  111,  111,  111,  111,  111,  111,  111,  111,
+      110,    1,  110,  110,  110,  110,  111,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      112,  112,  112,  112,  112,  112,  112,  112,  112,  112,
+      110,  110,  110,  110,  111,  110,  111,  110,  113,  110,
+      110,  110,  110,  112,  112,  112,  112,  112,  112,  112,
+      112,  112,  112,  112,  112,  112,  112,  112,  110,  113,
+      110,  112,  112,  112,  112,  112,  112,  112,  112,  112,
+      112,  112,  112,  112,  112,  112,  112,  112,  112,  112,
+      112,  112,  112,  112,  112,  112,  112,  112,  112,  112,
+      112,  112,  112,  112,  112,  112,  112,  112,  112,  112,
 
-      111,  111,  111,  111,  111,  111,  111,  111,    0,  109,
-      109,  109
+      112,  112,  112,  112,  112,  112,  112,  112,  112,    0,
+      110,  110,  110
     } ;
 
-static yyconst short int yy_nxt[182] =
+static yyconst short int yy_nxt[183] =
     {   0,
         4,    5,    6,    7,    8,    9,   10,   11,   12,   13,
        14,    4,   15,   16,   17,   18,   19,   20,   21,    4,
         4,   21,   22,   21,   21,   23,   24,   21,   21,   25,
        21,   21,   21,   26,   21,   27,   28,   29,   30,   21,
        21,   21,   31,   32,   33,   34,   34,   34,   34,   36,
-       40,   44,   41,   45,   46,   47,   48,   49,   55,   50,
-       34,   34,   36,   82,   40,   37,   41,   73,   43,  108,
-      107,  106,  105,   56,  104,  103,  102,  101,   37,  100,
-       99,   83,   74,   35,   35,   35,   59,   98,   59,   97,
-       96,   95,   94,   93,   92,   91,   90,   89,   88,   87,
+       40,   45,   41,   46,   47,   48,   49,   50,   56,   51,
+       34,   34,   36,   83,   40,   37,   41,   74,   44,  109,
+      108,  107,  106,   57,  105,  104,  103,  102,   37,  101,
+      100,   84,   75,   35,   35,   35,   60,   99,   60,   98,
+       97,   96,   95,   94,   93,   92,   91,   90,   89,   88,
 
-       86,   85,   84,   81,   80,   79,   78,   77,   76,   60,
-       75,   72,   71,   70,   69,   68,   67,   66,   65,   64,
-       63,   62,   61,   60,  109,   58,   57,   54,   53,   52,
-       51,   42,   39,   38,  109,    3,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109
+       87,   86,   85,   82,   81,   80,   79,   78,   77,   61,
+       76,   73,   72,   71,   70,   69,   68,   67,   66,   65,
+       64,   63,   62,   61,  110,   59,   58,   55,   54,   53,
+       52,   43,   42,   39,   38,  110,    3,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110
     } ;
 
-static yyconst short int yy_chk[182] =
+static yyconst short int yy_chk[183] =
     {   0,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
@@ -410,20 +410,20 @@ static yyconst short int yy_chk[182] =
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    5,    5,    6,    6,    7,
        16,   22,   16,   22,   23,   23,   23,   24,   29,   24,
-       34,   34,   35,   67,   41,    7,   41,   56,  111,  106,
-      105,  102,  101,   29,   99,   96,   93,   92,   35,   91,
-       89,   67,   56,  110,  110,  110,  112,   88,  112,   87,
-       86,   82,   81,   80,   78,   77,   75,   74,   73,   72,
+       34,   34,   35,   68,   41,    7,   41,   57,  112,  107,
+      106,  103,  102,   29,  100,   97,   94,   93,   35,   92,
+       90,   68,   57,  111,  111,  111,  113,   89,  113,   88,
+       87,   83,   82,   81,   79,   78,   76,   75,   74,   73,
 
-       71,   70,   69,   66,   65,   64,   63,   62,   61,   60,
-       57,   55,   54,   53,   52,   51,   50,   49,   48,   47,
-       46,   45,   44,   40,   37,   32,   30,   28,   27,   26,
-       25,   19,   15,    8,    3,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109,  109,  109,  109,  109,  109,  109,  109,  109,  109,
-      109
+       72,   71,   70,   67,   66,   65,   64,   63,   62,   61,
+       58,   56,   55,   54,   53,   52,   51,   50,   49,   48,
+       47,   46,   45,   40,   37,   32,   30,   28,   27,   26,
+       25,   19,   18,   15,    8,    3,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110,  110,  110,  110,  110,  110,  110,  110,  110,
+      110,  110
     } ;
 
 static yy_state_type yy_last_accepting_state;
@@ -649,13 +649,13 @@ yy_match:
 			while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 				{
 				yy_current_state = (int) yy_def[yy_current_state];
-				if ( yy_current_state >= 110 )
+				if ( yy_current_state >= 111 )
 					yy_c = yy_meta[(unsigned int) yy_c];
 				}
 			yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
 			++yy_cp;
 			}
-		while ( yy_base[yy_current_state] != 136 );
+		while ( yy_base[yy_current_state] != 137 );
 
 yy_find_action:
 		yy_act = yy_accept[yy_current_state];
@@ -809,64 +809,69 @@ return DIV;
 case 26:
 YY_RULE_SETUP
 #line 39 "orchestra.l"
-return LT;
+return LE;
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
 #line 40 "orchestra.l"
-return GT;
+return LT;
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 42 "orchestra.l"
-return SEMICOLON;
+#line 41 "orchestra.l"
+return GT;
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
 #line 43 "orchestra.l"
-return COMMA;
+return SEMICOLON;
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
 #line 44 "orchestra.l"
-return LPAREN;
+return COMMA;
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
 #line 45 "orchestra.l"
-return RPAREN;
+return LPAREN;
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
 #line 46 "orchestra.l"
-return LBRACE;
+return RPAREN;
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
 #line 47 "orchestra.l"
-return RBRACE;
+return LBRACE;
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 49 "orchestra.l"
+#line 48 "orchestra.l"
+return RBRACE;
+	YY_BREAK
+case 35:
+YY_RULE_SETUP
+#line 50 "orchestra.l"
 {
     yylval.numlit.num = atof(yytext);
     yylval.numlit.is_float = 1;
     return NUMBER;
 }
 	YY_BREAK
-case 35:
+case 36:
 YY_RULE_SETUP
-#line 55 "orchestra.l"
+#line 56 "orchestra.l"
 {
     yylval.numlit.num = atof(yytext);
     yylval.numlit.is_float = 0;
     return NUMBER;
 }
 	YY_BREAK
-case 36:
+case 37:
 YY_RULE_SETUP
-#line 61 "orchestra.l"
+#line 62 "orchestra.l"
 {
     /* store string literal without surrounding quotes */
     int n = yyleng;
@@ -882,32 +887,32 @@ YY_RULE_SETUP
     return STRING_LITERAL;
 }
 	YY_BREAK
-case 37:
+case 38:
 YY_RULE_SETUP
-#line 76 "orchestra.l"
+#line 77 "orchestra.l"
 {
     yylval.sval = strdup(yytext);
     return IDENTIFIER;
 }
 	YY_BREAK
-case 38:
-YY_RULE_SETUP
-#line 81 "orchestra.l"
-;
-	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 83 "orchestra.l"
+#line 82 "orchestra.l"
+;
+	YY_BREAK
+case 40:
+YY_RULE_SETUP
+#line 84 "orchestra.l"
 {
     printf("Invalid token: %s\n", yytext);
 }
 	YY_BREAK
-case 40:
+case 41:
 YY_RULE_SETUP
-#line 87 "orchestra.l"
+#line 88 "orchestra.l"
 ECHO;
 	YY_BREAK
-#line 911 "lex.yy.c"
+#line 916 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1199,7 +1204,7 @@ static yy_state_type yy_get_previous_state()
 		while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 			{
 			yy_current_state = (int) yy_def[yy_current_state];
-			if ( yy_current_state >= 110 )
+			if ( yy_current_state >= 111 )
 				yy_c = yy_meta[(unsigned int) yy_c];
 			}
 		yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
@@ -1234,11 +1239,11 @@ yy_state_type yy_current_state;
 	while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 		{
 		yy_current_state = (int) yy_def[yy_current_state];
-		if ( yy_current_state >= 110 )
+		if ( yy_current_state >= 111 )
 			yy_c = yy_meta[(unsigned int) yy_c];
 		}
 	yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
-	yy_is_jam = (yy_current_state == 109);
+	yy_is_jam = (yy_current_state == 110);
 
 	return yy_is_jam ? 0 : yy_current_state;
 	}
@@ -1793,4 +1798,4 @@ int main()
 	return 0;
 	}
 #endif
-#line 87 "orchestra.l"
+#line 88 "orchestra.l"

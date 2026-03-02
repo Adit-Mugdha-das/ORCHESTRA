@@ -36,6 +36,7 @@
 "*"         return MUL;
 "//"[^\n]*  ;
 "/"         return DIV;
+"<="        return LE;
 "<"         return LT;
 ">"         return GT;
 

@@ -1,0 +1,211 @@
+Compiler Project Proposal
+ORCHESTRA: A Flow-Oriented Programming Language
+
+Introduction
+ORCHESTRA is a flow-oriented, statically-typed programming language where programs
+are expressed as a sequence of stages inside flows. Instead of writing programs as isolated statements, ORCHESTRA emphasizes data flow, transformation steps, and
+structured computation pipelines. The language uses creative, domain-specific keywords while mapping cleanly to C semantics.
+
+Variable Naming Conventions
+Aspect
+
+Convention
+
+Identifiers
+Allowed characters
+Case sensitivity
+Reserved words
+
+Must start with a letter
+Letters, digits, underscore ( )
+Case-sensitive
+Cannot be used as identifiers
+
+Keywords and Their C Equivalents
+ORCHESTRA Meaning
+Keyword
+
+C Equivalent
+
+Example
+
+flow
+take
+emit
+note
+fixed
+stage
+ensemble
+
+Function definition
+Function parameters
+Return value
+Variable declaration
+Constant
+Computation step
+Structured data
+
+Function
+Parameters
+return
+Variable
+const
+Assignment
+struct
+
+play
+branch
+
+Output
+Conditional
+
+printf
+if / switch
+
+flow add {}
+take x, y
+emit sum
+note x = 5
+fixed PI = 3.14
+stage s = x + y
+ensemble Point
+{}
+play x
+branch (x==0)
+
+1
+
+elsewise
+repeat
+score
+
+Else block
+Loop
+Import module
+
+elsewise {}
+repeat (i ¡ n)
+score
+”math.orc”
+
+else
+for / while
+#include
+
+Data Types Supported
+ORCHESTRA
+Type
+
+Description
+
+C Equivalent
+
+int
+float
+bool
+string
+array
+
+Integer numbers
+Decimal numbers
+Boolean values
+Text data
+Indexed collection
+
+int
+float
+Bool
+char[]
+Array
+
+Operators
+Operator
+
+Purpose
+
+C Equivalent
+
+Example
+
++
+-
+
+Addition
+Subtraction
+Multiplication
+Division
+Equality
+Less than
+Greater than
+Logical AND
+Logical OR
+
++
+*
+/
+==
+¡
+¿
+&&
+——
+
+a+b
+a-b
+a*b
+a/b
+x == y
+x¡y
+x¿y
+a && b
+a —— b
+
+/
+==
+¡
+¿
+&&
+——
+
+Control Structures
+Conditional Statement
+Feature
+
+Description
+
+branch
+elsewise
+
+Conditional execution
+Alternative execution path
+
+2
+
+Looping Structure
+Feature
+
+Description
+
+repeat
+
+Iterative loop structure
+
+Functions (Flows)
+Functions in ORCHESTRA are called flows and consist of:
+• Input parameters
+• A sequence of computation stages
+• One or more output values
+
+Structured Data (Ensembles)
+ORCHESTRA supports structured data using the ensemble construct, which is similar
+to the struct concept in C and allows grouping related data elements.
+
+Conclusion
+ORCHESTRA proposes a novel flow-oriented programming paradigm that combines expressive, domain-specific keywords with well-established compiler design principles. The
+language is designed to clearly demonstrate lexical analysis, syntax parsing, symbol table management, and semantic checking using Flex and Bison. By mapping high-level
+flow constructs to equivalent C semantics, the project remains both practical and implementable within the scope of a compiler laboratory. This proposal establishes a strong
+foundation for further extensions such as advanced static analysis, flow validation, and
+enhanced code generation.
+
+3
+
+
