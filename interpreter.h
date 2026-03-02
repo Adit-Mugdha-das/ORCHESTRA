@@ -13,7 +13,7 @@ enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN, EXPR_UNARY };
 enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT };
 
 /* Internal operator codes for the interpreter */
-enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_EQ, OP_AND, OP_OR, OP_NOT, OP_NEG };
+enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_GE, OP_EQ, OP_NE, OP_AND, OP_OR, OP_NOT, OP_NEG };
 
 struct Expr {
     int kind;

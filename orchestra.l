@@ -31,6 +31,7 @@
 "false"     return FALSE;
 
 "=="        return EQ;
+"!="        return NE;
 "="         return ASSIGN;
 "&&"        return AND;
 "||"        return OR;
@@ -42,6 +43,7 @@
 "/"         return DIV;
 "<="        return LE;
 "<"         return LT;
+">="        return GE;
 ">"         return GT;
 
 ";"         return SEMICOLON;

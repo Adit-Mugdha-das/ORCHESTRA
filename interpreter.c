@@ -269,18 +269,22 @@ static Value eval_expr(Expr *e) {
             return eval_bin_numeric(e->op, a, b);
         }
 
-        if (e->op == OP_LT || e->op == OP_LE || e->op == OP_GT) {
+        if (e->op == OP_LT || e->op == OP_LE || e->op == OP_GT || e->op == OP_GE) {
             if (!is_numeric_type(a.type) || !is_numeric_type(b.type)) runtime_error("Comparison requires numeric types");
             if (e->op == OP_LT) return value_bool(a.num < b.num);
             if (e->op == OP_LE) return value_bool(a.num <= b.num);
-            return value_bool(a.num > b.num);
+            if (e->op == OP_GT) return value_bool(a.num > b.num);
+            return value_bool(a.num >= b.num);
         }
 
-        if (e->op == OP_EQ) {
-            if (is_numeric_type(a.type) && is_numeric_type(b.type)) return value_bool(a.num == b.num);
-            if (strcmp(a.type, "bool") == 0 && strcmp(b.type, "bool") == 0) return value_bool(a.boolean == b.boolean);
-            if (strcmp(a.type, "string") == 0 && strcmp(b.type, "string") == 0) return value_bool(strcmp(a.str, b.str) == 0);
-            runtime_error("== operands must be comparable");
+        if (e->op == OP_EQ || e->op == OP_NE) {
+            int eq = 0;
+            if (is_numeric_type(a.type) && is_numeric_type(b.type)) eq = (a.num == b.num);
+            else if (strcmp(a.type, "bool") == 0 && strcmp(b.type, "bool") == 0) eq = (a.boolean == b.boolean);
+            else if (strcmp(a.type, "string") == 0 && strcmp(b.type, "string") == 0) eq = (strcmp(a.str, b.str) == 0);
+            else runtime_error("==/!= operands must be comparable");
+
+            return value_bool(e->op == OP_EQ ? eq : !eq);
         }
 
         runtime_error("Unknown binary operator");

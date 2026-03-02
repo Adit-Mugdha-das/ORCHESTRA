@@ -36,7 +36,7 @@ static Stmt *g_main_block = NULL;
 %token TRUE FALSE
 
 /* operators/symbols */
-%token EQ ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT NOT
+%token EQ NE ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT GE NOT
 %token SEMICOLON COMMA LPAREN RPAREN LBRACE RBRACE
 
 /* typed tokens */
@@ -50,8 +50,8 @@ static Stmt *g_main_block = NULL;
 
 %left OR
 %left AND
-%left EQ
-%left LT LE GT
+%left EQ NE
+%left LT LE GT GE
 %left PLUS MINUS
 %left MUL DIV
 %right NOT
@@ -148,8 +148,12 @@ expression:
       { $$ = make_bin(OP_LE, $1, $3); }
     | expression GT expression
       { $$ = make_bin(OP_GT, $1, $3); }
+    | expression GE expression
+      { $$ = make_bin(OP_GE, $1, $3); }
     | expression EQ expression
       { $$ = make_bin(OP_EQ, $1, $3); }
+    | expression NE expression
+      { $$ = make_bin(OP_NE, $1, $3); }
 
     | expression AND expression
       { $$ = make_bin(OP_AND, $1, $3); }
