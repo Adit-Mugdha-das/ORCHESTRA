@@ -20,6 +20,8 @@ static Stmt *g_main_block = NULL;
   struct Expr;
   struct Stmt;
   struct StmtList;
+  struct ExprList;
+  struct NameList;
 }
 
 %union {
@@ -28,10 +30,12 @@ static Stmt *g_main_block = NULL;
   struct Expr *expr;
   struct Stmt *stmt;
   struct StmtList *stmt_list;
+  struct ExprList *expr_list;
+  struct NameList *name_list;
 }
 
 /* keywords */
-%token FLOW TAKE EMIT NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
+%token FLOW TAKE EMIT RETURN NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
 %token TRUE FALSE
 %token BREAK CONTINUE
@@ -48,6 +52,8 @@ static Stmt *g_main_block = NULL;
 %type <expr> expression
 %type <stmt> statement block branch_statement repeat_statement flow_definition
 %type <stmt_list> statement_list
+%type <expr_list> arg_list arg_list_opt
+%type <name_list> parameter_part parameter_list_opt parameter_list
 
 %left OR
 %left AND
@@ -68,25 +74,29 @@ program:
 flow_definition:
     FLOW IDENTIFIER parameter_part block
     {
-      if (!g_main_block) g_main_block = $4;
-      free($2);
+      register_flow($2, $3, $4);
+      if (strcmp($2, "main") == 0) {
+        g_main_block = $4;
+      } else if (!g_main_block) {
+        g_main_block = $4;
+      }
     }
     ;
 parameter_part:
-  TAKE LPAREN parameter_list_opt RPAREN
-    | /* empty */
+  TAKE LPAREN parameter_list_opt RPAREN { $$ = $3; }
+    | /* empty */ { $$ = NULL; }
     ;
 
 parameter_list_opt:
-  parameter_list
-    | /* empty */
+  parameter_list { $$ = $1; }
+    | /* empty */ { $$ = NULL; }
     ;
 
 parameter_list:
       parameter_list COMMA IDENTIFIER
-        { free($3); }
+    { $$ = namelist_append($1, $3); }
     | IDENTIFIER
-        { free($1); }
+    { $$ = namelist_append(NULL, $1); }
     ;
 
 /* ----- block scoping ----- */
@@ -108,6 +118,9 @@ statement:
 
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
+
+    | RETURN expression SEMICOLON
+      { $$ = make_return($2); }
 
     | BREAK SEMICOLON
       { $$ = make_assign(STMT_BREAK, NULL, NULL); }
@@ -180,8 +193,21 @@ expression:
     | STRING_LITERAL
       { $$ = make_lit_string($1); free($1); }
 
+    | IDENTIFIER LPAREN arg_list_opt RPAREN
+      { $$ = make_call($1, $3); }
+
     | IDENTIFIER
       { $$ = make_var($1); }
+    ;
+
+arg_list_opt:
+      arg_list { $$ = $1; }
+    | /* empty */ { $$ = NULL; }
+    ;
+
+arg_list:
+      arg_list COMMA expression { $$ = exprlist_append($1, $3); }
+    | expression { $$ = exprlist_append(NULL, $1); }
     ;
 
 %%
@@ -208,9 +234,10 @@ int main(int argc, char *argv[]) {
 
     if (g_main_block) {
       execute_program(g_main_block, yyout);
-      free_stmt(g_main_block);
       g_main_block = NULL;
     }
+
+    free_all_flows();
 
     fclose(input);
     fclose(output);

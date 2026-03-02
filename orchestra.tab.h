@@ -40,11 +40,13 @@
   struct Expr;
   struct Stmt;
   struct StmtList;
+  struct ExprList;
+  struct NameList;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 48 "orchestra.tab.h"
+#line 50 "orchestra.tab.h"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -55,47 +57,48 @@
      FLOW = 258,
      TAKE = 259,
      EMIT = 260,
-     NOTE = 261,
-     FIXED = 262,
-     STAGE = 263,
-     ENSEMBLE = 264,
-     PLAY = 265,
-     BRANCH = 266,
-     ELSEWISE = 267,
-     REPEAT = 268,
-     SCORE = 269,
-     TYPE_INT = 270,
-     TYPE_FLOAT = 271,
-     TYPE_BOOL = 272,
-     TYPE_STRING = 273,
-     TRUE = 274,
-     FALSE = 275,
-     BREAK = 276,
-     CONTINUE = 277,
-     EQ = 278,
-     NE = 279,
-     ASSIGN = 280,
-     AND = 281,
-     OR = 282,
-     PLUS = 283,
-     MINUS = 284,
-     MUL = 285,
-     DIV = 286,
-     LT = 287,
-     LE = 288,
-     GT = 289,
-     GE = 290,
-     NOT = 291,
-     SEMICOLON = 292,
-     COMMA = 293,
-     LPAREN = 294,
-     RPAREN = 295,
-     LBRACE = 296,
-     RBRACE = 297,
-     NUMBER = 298,
-     STRING_LITERAL = 299,
-     IDENTIFIER = 300,
-     UMINUS = 301
+     RETURN = 261,
+     NOTE = 262,
+     FIXED = 263,
+     STAGE = 264,
+     ENSEMBLE = 265,
+     PLAY = 266,
+     BRANCH = 267,
+     ELSEWISE = 268,
+     REPEAT = 269,
+     SCORE = 270,
+     TYPE_INT = 271,
+     TYPE_FLOAT = 272,
+     TYPE_BOOL = 273,
+     TYPE_STRING = 274,
+     TRUE = 275,
+     FALSE = 276,
+     BREAK = 277,
+     CONTINUE = 278,
+     EQ = 279,
+     NE = 280,
+     ASSIGN = 281,
+     AND = 282,
+     OR = 283,
+     PLUS = 284,
+     MINUS = 285,
+     MUL = 286,
+     DIV = 287,
+     LT = 288,
+     LE = 289,
+     GT = 290,
+     GE = 291,
+     NOT = 292,
+     SEMICOLON = 293,
+     COMMA = 294,
+     LPAREN = 295,
+     RPAREN = 296,
+     LBRACE = 297,
+     RBRACE = 298,
+     NUMBER = 299,
+     STRING_LITERAL = 300,
+     IDENTIFIER = 301,
+     UMINUS = 302
    };
 #endif
 
@@ -106,18 +109,20 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 25 "orchestra.y"
+#line 27 "orchestra.y"
 
   struct { double num; int is_float; } numlit;
   char *sval;
   struct Expr *expr;
   struct Stmt *stmt;
   struct StmtList *stmt_list;
+  struct ExprList *expr_list;
+  struct NameList *name_list;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 121 "orchestra.tab.h"
+#line 126 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

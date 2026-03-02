@@ -12,6 +12,7 @@
 "flow"      return FLOW;
 "take"      return TAKE;
 "emit"      return EMIT;
+"return"    return RETURN;
 "note"      return NOTE;
 "fixed"     return FIXED;
 "stage"     return STAGE;

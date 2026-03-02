@@ -18,8 +18,31 @@ static int g_loop_depth = 0;
 typedef enum {
     SIG_OK = 0,
     SIG_BREAK,
-    SIG_CONTINUE
+    SIG_CONTINUE,
+    SIG_RETURN
 } ExecSignal;
+
+static Value g_return_value;
+static int g_has_return = 0;
+
+static ExecSignal exec_stmt(Stmt *s);
+
+typedef struct Flow {
+    char *name;
+    NameList *params;
+    Stmt *body;
+} Flow;
+
+#define MAX_FLOWS 128
+static Flow g_flows[MAX_FLOWS];
+static int g_flow_count = 0;
+
+static Flow* find_flow(const char *name) {
+    for (int i = 0; i < g_flow_count; i++) {
+        if (strcmp(g_flows[i].name, name) == 0) return &g_flows[i];
+    }
+    return NULL;
+}
 
 static void runtime_error(const char *msg) {
     FILE *out = g_out ? g_out : stdout;
@@ -116,6 +139,39 @@ Expr* make_unary(int op, Expr *operand) {
     return e;
 }
 
+Expr* make_call(char *callee, ExprList *args) {
+    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_CALL;
+    e->callee = callee;
+    e->args = args;
+    return e;
+}
+
+ExprList* exprlist_append(ExprList *list, Expr *expr) {
+    ExprList *node = (ExprList*)calloc(1, sizeof(ExprList));
+    if (!node) exit(1);
+    node->expr = expr;
+    node->next = NULL;
+    if (!list) return node;
+    ExprList *cur = list;
+    while (cur->next) cur = cur->next;
+    cur->next = node;
+    return list;
+}
+
+NameList* namelist_append(NameList *list, char *name) {
+    NameList *node = (NameList*)calloc(1, sizeof(NameList));
+    if (!node) exit(1);
+    node->name = name;
+    node->next = NULL;
+    if (!list) return node;
+    NameList *cur = list;
+    while (cur->next) cur = cur->next;
+    cur->next = node;
+    return list;
+}
+
 StmtList* stmtlist_append(StmtList *list, Stmt *stmt) {
     StmtList *node = (StmtList*)calloc(1, sizeof(StmtList));
     if (!node) exit(1);
@@ -171,6 +227,23 @@ Stmt* make_repeat(Expr *cond, Stmt *body) {
     s->cond = cond;
     s->body = body;
     return s;
+}
+
+Stmt* make_return(Expr *expr) {
+    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_RETURN;
+    s->expr = expr;
+    return s;
+}
+
+void register_flow(char *name, NameList *params, Stmt *body) {
+    if (g_flow_count >= MAX_FLOWS) runtime_error("Too many flows");
+    if (find_flow(name)) runtime_error("Duplicate flow name");
+    g_flows[g_flow_count].name = name;
+    g_flows[g_flow_count].params = params;
+    g_flows[g_flow_count].body = body;
+    g_flow_count++;
 }
 
 static Value symbol_to_value(Symbol *sym) {
@@ -236,6 +309,40 @@ static Value eval_expr(Expr *e) {
     if (e->kind == EXPR_VAR) {
         Symbol *sym = get_symbol_or_error(e->name);
         return symbol_to_value(sym);
+    }
+
+    if (e->kind == EXPR_CALL) {
+        Flow *flow = find_flow(e->callee);
+        if (!flow) runtime_error("Call to undefined flow");
+
+        /* Save/restore return context for nested calls */
+        Value prev_ret = g_return_value;
+        int prev_has = g_has_return;
+        g_has_return = 0;
+
+        push_scope();
+
+        NameList *p = flow->params;
+        ExprList *a = e->args;
+        while (p && a) {
+            Value av = eval_expr(a->expr);
+            store_value_note(p->name, av);
+            p = p->next;
+            a = a->next;
+        }
+        if (p || a) runtime_error("Argument count mismatch in call");
+
+        ExecSignal sig = exec_stmt(flow->body);
+        (void)sig;
+
+        Value outv = g_has_return ? g_return_value : value_num(0, "int");
+
+        pop_scope();
+
+        g_return_value = prev_ret;
+        g_has_return = prev_has;
+
+        return outv;
     }
 
     if (e->kind == EXPR_UNARY) {
@@ -392,6 +499,7 @@ static ExecSignal exec_stmt(Stmt *s) {
                 ExecSignal sig = exec_stmt(s->body);
                 if (sig == SIG_BREAK) { sig = SIG_OK; break; }
                 if (sig == SIG_CONTINUE) { continue; }
+                if (sig == SIG_RETURN) { g_loop_depth--; return SIG_RETURN; }
             }
             g_loop_depth--;
             return SIG_OK;
@@ -403,6 +511,11 @@ static ExecSignal exec_stmt(Stmt *s) {
         case STMT_CONTINUE: {
             if (g_loop_depth <= 0) runtime_error("continue used outside repeat");
             return SIG_CONTINUE;
+        }
+        case STMT_RETURN: {
+            g_return_value = eval_expr(s->expr);
+            g_has_return = 1;
+            return SIG_RETURN;
         }
         default:
             runtime_error("Unknown statement kind");
@@ -416,6 +529,7 @@ void execute_program(Stmt *root, FILE *out) {
     ExecSignal sig = exec_stmt(root);
     if (sig == SIG_BREAK) runtime_error("break used outside repeat");
     if (sig == SIG_CONTINUE) runtime_error("continue used outside repeat");
+    /* SIG_RETURN at top-level is allowed: it just stops execution. */
 }
 
 static void free_stmt_list(StmtList *list);
@@ -427,6 +541,19 @@ static void free_expr(Expr *e) {
     if (e->kind == EXPR_VAR) {
         free(e->name);
         e->name = NULL;
+    }
+
+    if (e->kind == EXPR_CALL) {
+        free(e->callee);
+        e->callee = NULL;
+        ExprList *cur = e->args;
+        while (cur) {
+            ExprList *next = cur->next;
+            free_expr(cur->expr);
+            free(cur);
+            cur = next;
+        }
+        e->args = NULL;
     }
 
     free_expr(e->left);
@@ -463,4 +590,25 @@ void free_stmt(Stmt *s) {
     free_stmt(s->body);
 
     free(s);
+}
+
+static void free_namelist(NameList *list) {
+    while (list) {
+        NameList *next = list->next;
+        free(list->name);
+        free(list);
+        list = next;
+    }
+}
+
+void free_all_flows(void) {
+    for (int i = 0; i < g_flow_count; i++) {
+        free(g_flows[i].name);
+        free_namelist(g_flows[i].params);
+        free_stmt(g_flows[i].body);
+        g_flows[i].name = NULL;
+        g_flows[i].params = NULL;
+        g_flows[i].body = NULL;
+    }
+    g_flow_count = 0;
 }
