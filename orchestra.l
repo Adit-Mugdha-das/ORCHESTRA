@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "orchestra.tab.h"
+#include "interpreter.h"
 %}
 
 %%
@@ -84,7 +85,7 @@
 }
 
 [a-zA-Z][a-zA-Z0-9_]* {
-    yylval.sval = strdup(yytext);
+    yylval.sval = arena_strdup(yytext);
     return IDENTIFIER;
 }
 

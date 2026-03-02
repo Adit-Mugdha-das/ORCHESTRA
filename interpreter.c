@@ -4,6 +4,54 @@
 #include <string.h>
 
 #include "symbol_table.h"
+#include "flow_registry.h"
+
+/* -------------------------
+   AST/identifier arena
+   ------------------------- */
+
+static void **g_arena_ptrs = NULL;
+static size_t g_arena_count = 0;
+static size_t g_arena_cap = 0;
+
+static void arena_track(void *p) {
+    if (!p) return;
+    if (g_arena_count == g_arena_cap) {
+        size_t new_cap = g_arena_cap ? (g_arena_cap * 2) : 1024;
+        void **np = (void**)realloc(g_arena_ptrs, new_cap * sizeof(void*));
+        if (!np) exit(1);
+        g_arena_ptrs = np;
+        g_arena_cap = new_cap;
+    }
+    g_arena_ptrs[g_arena_count++] = p;
+}
+
+static void* arena_calloc(size_t count, size_t size) {
+    void *p = calloc(count, size);
+    if (!p) exit(1);
+    arena_track(p);
+    return p;
+}
+
+char* arena_strdup(const char *s) {
+    if (!s) return NULL;
+    size_t n = strlen(s);
+    char *p = (char*)malloc(n + 1);
+    if (!p) exit(1);
+    memcpy(p, s, n + 1);
+    arena_track(p);
+    return p;
+}
+
+void arena_free_all(void) {
+    for (size_t i = 0; i < g_arena_count; i++) {
+        free(g_arena_ptrs[i]);
+    }
+    free(g_arena_ptrs);
+    g_arena_ptrs = NULL;
+    g_arena_count = 0;
+    g_arena_cap = 0;
+}
 
 typedef struct Value {
     char type[16];
@@ -33,15 +81,10 @@ typedef struct Flow {
     Stmt *body;
 } Flow;
 
-#define MAX_FLOWS 128
-static Flow g_flows[MAX_FLOWS];
-static int g_flow_count = 0;
+/* Flow storage is implemented in C++ (flow_registry.cpp). */
 
-static Flow* find_flow(const char *name) {
-    for (int i = 0; i < g_flow_count; i++) {
-        if (strcmp(g_flows[i].name, name) == 0) return &g_flows[i];
-    }
-    return NULL;
+static FlowHandle* find_flow_handle(const char *name) {
+    return flow_registry_find(name);
 }
 
 static void runtime_error(const char *msg) {
@@ -84,7 +127,7 @@ static Value value_string(const char *s) {
 }
 
 Expr* make_lit_num(double num, int is_float) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_LIT;
     strcpy(e->lit_type, is_float ? "float" : "int");
@@ -93,7 +136,7 @@ Expr* make_lit_num(double num, int is_float) {
 }
 
 Expr* make_lit_bool(int boolean) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_LIT;
     strcpy(e->lit_type, "bool");
@@ -102,7 +145,7 @@ Expr* make_lit_bool(int boolean) {
 }
 
 Expr* make_lit_string(const char *s) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_LIT;
     strcpy(e->lit_type, "string");
@@ -112,7 +155,7 @@ Expr* make_lit_string(const char *s) {
 }
 
 Expr* make_var(char *name) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_VAR;
     e->name = name;
@@ -120,7 +163,7 @@ Expr* make_var(char *name) {
 }
 
 Expr* make_bin(int op, Expr *l, Expr *r) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_BIN;
     e->op = op;
@@ -130,7 +173,7 @@ Expr* make_bin(int op, Expr *l, Expr *r) {
 }
 
 Expr* make_unary(int op, Expr *operand) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_UNARY;
     e->op = op;
@@ -140,7 +183,7 @@ Expr* make_unary(int op, Expr *operand) {
 }
 
 Expr* make_call(char *callee, ExprList *args) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_CALL;
     e->callee = callee;
@@ -149,7 +192,7 @@ Expr* make_call(char *callee, ExprList *args) {
 }
 
 Expr* make_chain(Expr *first, ChainPart *rest) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
     if (!e) exit(1);
     e->kind = EXPR_CHAIN;
     e->chain_first = first;
@@ -158,7 +201,7 @@ Expr* make_chain(Expr *first, ChainPart *rest) {
 }
 
 ChainPart* chainpart_append(ChainPart *list, int op, Expr *expr) {
-    ChainPart *node = (ChainPart*)calloc(1, sizeof(ChainPart));
+    ChainPart *node = (ChainPart*)arena_calloc(1, sizeof(ChainPart));
     if (!node) exit(1);
     node->op = op;
     node->expr = expr;
@@ -171,7 +214,7 @@ ChainPart* chainpart_append(ChainPart *list, int op, Expr *expr) {
 }
 
 ExprList* exprlist_append(ExprList *list, Expr *expr) {
-    ExprList *node = (ExprList*)calloc(1, sizeof(ExprList));
+    ExprList *node = (ExprList*)arena_calloc(1, sizeof(ExprList));
     if (!node) exit(1);
     node->expr = expr;
     node->next = NULL;
@@ -183,7 +226,7 @@ ExprList* exprlist_append(ExprList *list, Expr *expr) {
 }
 
 NameList* namelist_append(NameList *list, char *name) {
-    NameList *node = (NameList*)calloc(1, sizeof(NameList));
+    NameList *node = (NameList*)arena_calloc(1, sizeof(NameList));
     if (!node) exit(1);
     node->name = name;
     node->next = NULL;
@@ -195,7 +238,7 @@ NameList* namelist_append(NameList *list, char *name) {
 }
 
 StmtList* stmtlist_append(StmtList *list, Stmt *stmt) {
-    StmtList *node = (StmtList*)calloc(1, sizeof(StmtList));
+    StmtList *node = (StmtList*)arena_calloc(1, sizeof(StmtList));
     if (!node) exit(1);
     node->stmt = stmt;
     node->next = NULL;
@@ -208,7 +251,7 @@ StmtList* stmtlist_append(StmtList *list, Stmt *stmt) {
 }
 
 Stmt* make_block(StmtList *list) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_BLOCK;
     s->list = list;
@@ -216,7 +259,7 @@ Stmt* make_block(StmtList *list) {
 }
 
 Stmt* make_assign(int kind, char *name, Expr *expr) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = kind;
     s->name = name;
@@ -225,7 +268,7 @@ Stmt* make_assign(int kind, char *name, Expr *expr) {
 }
 
 Stmt* make_emit(Expr *expr) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_EMIT;
     s->expr = expr;
@@ -233,7 +276,7 @@ Stmt* make_emit(Expr *expr) {
 }
 
 Stmt* make_expr_stmt(Expr *expr) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_EXPR;
     s->expr = expr;
@@ -241,7 +284,7 @@ Stmt* make_expr_stmt(Expr *expr) {
 }
 
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_BRANCH;
     s->cond = cond;
@@ -251,7 +294,7 @@ Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block) {
 }
 
 Stmt* make_repeat(Expr *cond, Stmt *body) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_REPEAT;
     s->cond = cond;
@@ -260,7 +303,7 @@ Stmt* make_repeat(Expr *cond, Stmt *body) {
 }
 
 Stmt* make_return(Expr *expr) {
-    Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_RETURN;
     s->expr = expr;
@@ -268,12 +311,7 @@ Stmt* make_return(Expr *expr) {
 }
 
 void register_flow(char *name, NameList *params, Stmt *body) {
-    if (g_flow_count >= MAX_FLOWS) runtime_error("Too many flows");
-    if (find_flow(name)) runtime_error("Duplicate flow name");
-    g_flows[g_flow_count].name = name;
-    g_flows[g_flow_count].params = params;
-    g_flows[g_flow_count].body = body;
-    g_flow_count++;
+    flow_registry_register(name, params, body);
 }
 
 static Value symbol_to_value(Symbol *sym) {
@@ -342,7 +380,7 @@ static Value eval_expr(Expr *e) {
     }
 
     if (e->kind == EXPR_CALL) {
-        Flow *flow = find_flow(e->callee);
+        FlowHandle *flow = find_flow_handle(e->callee);
         if (!flow) runtime_error("Call to undefined flow");
 
         /* Save/restore return context for nested calls */
@@ -352,7 +390,7 @@ static Value eval_expr(Expr *e) {
 
         push_scope();
 
-        NameList *p = flow->params;
+        NameList *p = flow_registry_params(flow);
         ExprList *a = e->args;
         while (p && a) {
             Value av = eval_expr(a->expr);
@@ -362,8 +400,10 @@ static Value eval_expr(Expr *e) {
         }
         if (p || a) runtime_error("Argument count mismatch in call");
 
-        ExecSignal sig = exec_stmt(flow->body);
+        ExecSignal sig = exec_stmt(flow_registry_body(flow));
         (void)sig;
+
+        free(flow);
 
         Value outv = g_has_return ? g_return_value : value_num(0, "int");
 
@@ -602,92 +642,17 @@ static void free_stmt_list(StmtList *list);
 static void free_expr(Expr *e);
 
 static void free_expr(Expr *e) {
-    if (!e) return;
-
-    if (e->kind == EXPR_VAR) {
-        free(e->name);
-        e->name = NULL;
-    }
-
-    if (e->kind == EXPR_CALL) {
-        free(e->callee);
-        e->callee = NULL;
-        ExprList *cur = e->args;
-        while (cur) {
-            ExprList *next = cur->next;
-            free_expr(cur->expr);
-            free(cur);
-            cur = next;
-        }
-        e->args = NULL;
-    }
-
-    if (e->kind == EXPR_CHAIN) {
-        free_expr(e->chain_first);
-        e->chain_first = NULL;
-        ChainPart *p = e->chain_rest;
-        while (p) {
-            ChainPart *next = p->next;
-            free_expr(p->expr);
-            free(p);
-            p = next;
-        }
-        e->chain_rest = NULL;
-    }
-
-    free_expr(e->left);
-    free_expr(e->right);
-    free(e);
+    (void)e;
 }
 
 static void free_stmt_list(StmtList *list) {
-    while (list) {
-        StmtList *next = list->next;
-        free_stmt(list->stmt);
-        free(list);
-        list = next;
-    }
+    (void)list;
 }
 
 void free_stmt(Stmt *s) {
-    if (!s) return;
-
-    if (s->name) {
-        free(s->name);
-        s->name = NULL;
-    }
-
-    free_expr(s->expr);
-    free_expr(s->cond);
-
-    if (s->kind == STMT_BLOCK) {
-        free_stmt_list(s->list);
-    }
-
-    free_stmt(s->then_block);
-    free_stmt(s->else_block);
-    free_stmt(s->body);
-
-    free(s);
-}
-
-static void free_namelist(NameList *list) {
-    while (list) {
-        NameList *next = list->next;
-        free(list->name);
-        free(list);
-        list = next;
-    }
+    (void)s;
 }
 
 void free_all_flows(void) {
-    for (int i = 0; i < g_flow_count; i++) {
-        free(g_flows[i].name);
-        free_namelist(g_flows[i].params);
-        free_stmt(g_flows[i].body);
-        g_flows[i].name = NULL;
-        g_flows[i].params = NULL;
-        g_flows[i].body = NULL;
-    }
-    g_flow_count = 0;
+    flow_registry_free_all();
 }

@@ -2139,6 +2139,7 @@ int main(int argc, char *argv[]) {
     }
 
     free_all_flows();
+    arena_free_all();
 
     fclose(input);
     fclose(output);

@@ -1,20 +1,7 @@
 flow main take () {
-
-    note a = 10;
-    note b = 5;
-
-    stage sum = a + b;
-
-    branch (sum > 10) {
-
-        repeat (b > 0) {
-            emit b;
-            stage b = b - 1;
-        }
-
+    note x = 0;
+    repeat (x < 3) {
+        emit x;
+        stage x = x + 1;
     }
-    elsewise {
-        emit 0;
-    }
-
 }

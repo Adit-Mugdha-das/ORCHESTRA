@@ -3,6 +3,18 @@
 
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Simple arena allocator used for AST + identifier storage.
+    This is a low-risk bridge step toward full C++ RAII.
+    - Use arena_strdup() for IDENTIFIER token storage.
+    - Call arena_free_all() once at end of program.
+*/
+char* arena_strdup(const char *s);
+void arena_free_all(void);
+
 /* Forward declarations so Bison/Flex can use pointers in YYSTYPE. */
 typedef struct Expr Expr;
 typedef struct Stmt Stmt;
@@ -112,5 +124,9 @@ void free_stmt(Stmt *s);
 /* Flow registry for function calls */
 void register_flow(char *name /* takes ownership */, NameList *params /* takes ownership */, Stmt *body /* takes ownership */);
 void free_all_flows(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

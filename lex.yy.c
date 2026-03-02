@@ -457,7 +457,8 @@ char *yytext;
 #include <stdlib.h>
 #include <string.h>
 #include "orchestra.tab.h"
-#line 461 "lex.yy.c"
+#include "interpreter.h"
+#line 462 "lex.yy.c"
 
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
@@ -608,10 +609,10 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
 
-#line 10 "orchestra.l"
+#line 11 "orchestra.l"
 
 
-#line 615 "lex.yy.c"
+#line 616 "lex.yy.c"
 
 	if ( yy_init )
 		{
@@ -696,217 +697,217 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 12 "orchestra.l"
+#line 13 "orchestra.l"
 return FLOW;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 13 "orchestra.l"
+#line 14 "orchestra.l"
 return TAKE;
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 14 "orchestra.l"
+#line 15 "orchestra.l"
 return EMIT;
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 15 "orchestra.l"
+#line 16 "orchestra.l"
 return RETURN;
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 16 "orchestra.l"
+#line 17 "orchestra.l"
 return NOTE;
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 17 "orchestra.l"
+#line 18 "orchestra.l"
 return FIXED;
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 18 "orchestra.l"
+#line 19 "orchestra.l"
 return STAGE;
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 19 "orchestra.l"
+#line 20 "orchestra.l"
 return ENSEMBLE;
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 20 "orchestra.l"
+#line 21 "orchestra.l"
 return PLAY;
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 21 "orchestra.l"
+#line 22 "orchestra.l"
 return BRANCH;
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 22 "orchestra.l"
+#line 23 "orchestra.l"
 return ELSEWISE;
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 23 "orchestra.l"
+#line 24 "orchestra.l"
 return REPEAT;
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 24 "orchestra.l"
+#line 25 "orchestra.l"
 return BREAK;
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 25 "orchestra.l"
+#line 26 "orchestra.l"
 return CONTINUE;
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 26 "orchestra.l"
+#line 27 "orchestra.l"
 return SCORE;
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 28 "orchestra.l"
+#line 29 "orchestra.l"
 return TYPE_INT;
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 29 "orchestra.l"
+#line 30 "orchestra.l"
 return TYPE_FLOAT;
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 30 "orchestra.l"
+#line 31 "orchestra.l"
 return TYPE_BOOL;
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 31 "orchestra.l"
+#line 32 "orchestra.l"
 return TYPE_STRING;
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 33 "orchestra.l"
+#line 34 "orchestra.l"
 return TRUE;
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 34 "orchestra.l"
+#line 35 "orchestra.l"
 return FALSE;
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 36 "orchestra.l"
+#line 37 "orchestra.l"
 return EQ;
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 37 "orchestra.l"
+#line 38 "orchestra.l"
 return NE;
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 38 "orchestra.l"
+#line 39 "orchestra.l"
 return ASSIGN;
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 39 "orchestra.l"
+#line 40 "orchestra.l"
 return AND;
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 40 "orchestra.l"
+#line 41 "orchestra.l"
 return OR;
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 41 "orchestra.l"
+#line 42 "orchestra.l"
 return PLUS;
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 42 "orchestra.l"
+#line 43 "orchestra.l"
 return MINUS;
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 43 "orchestra.l"
+#line 44 "orchestra.l"
 return MUL;
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 44 "orchestra.l"
+#line 45 "orchestra.l"
 return NOT;
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 45 "orchestra.l"
+#line 46 "orchestra.l"
 ;
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 46 "orchestra.l"
+#line 47 "orchestra.l"
 return DIV;
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 47 "orchestra.l"
+#line 48 "orchestra.l"
 return LE;
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 48 "orchestra.l"
+#line 49 "orchestra.l"
 return LT;
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 49 "orchestra.l"
+#line 50 "orchestra.l"
 return GE;
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 50 "orchestra.l"
+#line 51 "orchestra.l"
 return GT;
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 52 "orchestra.l"
+#line 53 "orchestra.l"
 return SEMICOLON;
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 53 "orchestra.l"
+#line 54 "orchestra.l"
 return COMMA;
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 54 "orchestra.l"
+#line 55 "orchestra.l"
 return LPAREN;
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 55 "orchestra.l"
+#line 56 "orchestra.l"
 return RPAREN;
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 56 "orchestra.l"
+#line 57 "orchestra.l"
 return LBRACE;
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 57 "orchestra.l"
+#line 58 "orchestra.l"
 return RBRACE;
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 59 "orchestra.l"
+#line 60 "orchestra.l"
 {
     yylval.numlit.num = atof(yytext);
     yylval.numlit.is_float = 1;
@@ -915,7 +916,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 65 "orchestra.l"
+#line 66 "orchestra.l"
 {
     yylval.numlit.num = atof(yytext);
     yylval.numlit.is_float = 0;
@@ -924,7 +925,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 71 "orchestra.l"
+#line 72 "orchestra.l"
 {
     /* store string literal without surrounding quotes */
     int n = yyleng;
@@ -942,30 +943,30 @@ YY_RULE_SETUP
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 86 "orchestra.l"
+#line 87 "orchestra.l"
 {
-    yylval.sval = strdup(yytext);
+    yylval.sval = arena_strdup(yytext);
     return IDENTIFIER;
 }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 91 "orchestra.l"
+#line 92 "orchestra.l"
 ;
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 93 "orchestra.l"
+#line 94 "orchestra.l"
 {
     printf("Invalid token: %s\n", yytext);
 }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 97 "orchestra.l"
+#line 98 "orchestra.l"
 ECHO;
 	YY_BREAK
-#line 969 "lex.yy.c"
+#line 970 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1851,4 +1852,4 @@ int main()
 	return 0;
 	}
 #endif
-#line 97 "orchestra.l"
+#line 98 "orchestra.l"
