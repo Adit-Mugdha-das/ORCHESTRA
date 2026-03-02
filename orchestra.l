@@ -20,6 +20,8 @@
 "branch"    return BRANCH;
 "elsewise"  return ELSEWISE;
 "repeat"    return REPEAT;
+"break"     return BREAK;
+"continue"  return CONTINUE;
 "score"     return SCORE;
 
 "int"       return TYPE_INT;

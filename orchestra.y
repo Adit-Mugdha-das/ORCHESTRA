@@ -34,6 +34,7 @@ static Stmt *g_main_block = NULL;
 %token FLOW TAKE EMIT NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
 %token TRUE FALSE
+%token BREAK CONTINUE
 
 /* operators/symbols */
 %token EQ NE ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT GE NOT
@@ -107,6 +108,11 @@ statement:
 
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
+
+    | BREAK SEMICOLON
+      { $$ = make_assign(STMT_BREAK, NULL, NULL); }
+    | CONTINUE SEMICOLON
+      { $$ = make_assign(STMT_CONTINUE, NULL, NULL); }
 
     | branch_statement
     | repeat_statement

@@ -13,6 +13,13 @@ typedef struct Value {
 } Value;
 
 static FILE *g_out = NULL;
+static int g_loop_depth = 0;
+
+typedef enum {
+    SIG_OK = 0,
+    SIG_BREAK,
+    SIG_CONTINUE
+} ExecSignal;
 
 static void runtime_error(const char *msg) {
     FILE *out = g_out ? g_out : stdout;
@@ -265,7 +272,24 @@ static Value eval_expr(Expr *e) {
         Value a = eval_expr(e->left);
         Value b = eval_expr(e->right);
 
-        if (e->op == OP_PLUS || e->op == OP_MINUS || e->op == OP_MUL || e->op == OP_DIV) {
+        if (e->op == OP_PLUS) {
+            if (strcmp(a.type, "string") == 0 && strcmp(b.type, "string") == 0) {
+                Value out = value_string("");
+                size_t la = strlen(a.str);
+                size_t lb = strlen(b.str);
+                if (la + lb >= sizeof(out.str)) runtime_error("String concatenation too long");
+                memcpy(out.str, a.str, la);
+                memcpy(out.str + la, b.str, lb);
+                out.str[la + lb] = '\0';
+                return out;
+            }
+            if (is_numeric_type(a.type) && is_numeric_type(b.type)) {
+                return eval_bin_numeric(OP_PLUS, a, b);
+            }
+            runtime_error("'+' supports numeric addition or string concatenation only");
+        }
+
+        if (e->op == OP_MINUS || e->op == OP_MUL || e->op == OP_DIV) {
             return eval_bin_numeric(e->op, a, b);
         }
 
@@ -317,61 +341,81 @@ static void print_value(Value v) {
     runtime_error("Unknown value type for emit");
 }
 
-static void exec_stmt(Stmt *s);
+static ExecSignal exec_stmt(Stmt *s);
 
-static void exec_stmt_list(StmtList *list) {
-    for (StmtList *cur = list; cur; cur = cur->next) exec_stmt(cur->stmt);
+static ExecSignal exec_stmt_list(StmtList *list) {
+    for (StmtList *cur = list; cur; cur = cur->next) {
+        ExecSignal sig = exec_stmt(cur->stmt);
+        if (sig != SIG_OK) return sig;
+    }
+    return SIG_OK;
 }
 
-static void exec_stmt(Stmt *s) {
-    if (!s) return;
+static ExecSignal exec_stmt(Stmt *s) {
+    if (!s) return SIG_OK;
 
     switch (s->kind) {
         case STMT_NOTE: {
             Value v = eval_expr(s->expr);
             store_value_note(s->name, v);
-            break;
+            return SIG_OK;
         }
         case STMT_STAGE: {
             Value v = eval_expr(s->expr);
             store_value_stage(s->name, v);
-            break;
+            return SIG_OK;
         }
         case STMT_EMIT: {
             Value v = eval_expr(s->expr);
             print_value(v);
-            break;
+            return SIG_OK;
         }
         case STMT_BLOCK: {
             push_scope();
-            exec_stmt_list(s->list);
+            ExecSignal sig = exec_stmt_list(s->list);
             pop_scope();
-            break;
+            return sig;
         }
         case STMT_BRANCH: {
             Value c = eval_expr(s->cond);
             if (strcmp(c.type, "bool") != 0) runtime_error("branch condition must be bool");
-            if (c.boolean) exec_stmt(s->then_block);
-            else if (s->else_block) exec_stmt(s->else_block);
-            break;
+            if (c.boolean) return exec_stmt(s->then_block);
+            if (s->else_block) return exec_stmt(s->else_block);
+            return SIG_OK;
         }
         case STMT_REPEAT: {
+            g_loop_depth++;
             for (;;) {
                 Value c = eval_expr(s->cond);
                 if (strcmp(c.type, "bool") != 0) runtime_error("repeat condition must be bool");
                 if (!c.boolean) break;
-                exec_stmt(s->body);
+                ExecSignal sig = exec_stmt(s->body);
+                if (sig == SIG_BREAK) { sig = SIG_OK; break; }
+                if (sig == SIG_CONTINUE) { continue; }
             }
-            break;
+            g_loop_depth--;
+            return SIG_OK;
+        }
+        case STMT_BREAK: {
+            if (g_loop_depth <= 0) runtime_error("break used outside repeat");
+            return SIG_BREAK;
+        }
+        case STMT_CONTINUE: {
+            if (g_loop_depth <= 0) runtime_error("continue used outside repeat");
+            return SIG_CONTINUE;
         }
         default:
             runtime_error("Unknown statement kind");
     }
+
+    return SIG_OK;
 }
 
 void execute_program(Stmt *root, FILE *out) {
     g_out = out;
-    exec_stmt(root);
+    ExecSignal sig = exec_stmt(root);
+    if (sig == SIG_BREAK) runtime_error("break used outside repeat");
+    if (sig == SIG_CONTINUE) runtime_error("continue used outside repeat");
 }
 
 static void free_stmt_list(StmtList *list);

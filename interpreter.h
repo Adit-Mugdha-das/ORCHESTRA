@@ -10,7 +10,7 @@ typedef struct StmtList StmtList;
 
 /* Expression/statement kinds */
 enum { EXPR_LIT = 1, EXPR_VAR, EXPR_BIN, EXPR_UNARY };
-enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT };
+enum { STMT_NOTE = 1, STMT_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE };
 
 /* Internal operator codes for the interpreter */
 enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_GE, OP_EQ, OP_NE, OP_AND, OP_OR, OP_NOT, OP_NEG };
@@ -64,7 +64,7 @@ Expr* make_unary(int op, Expr *operand);
 StmtList* stmtlist_append(StmtList *list, Stmt *stmt);
 
 Stmt* make_block(StmtList *list);
-Stmt* make_assign(int kind /* STMT_NOTE/STMT_STAGE */, char *name /* takes ownership */, Expr *expr);
+Stmt* make_assign(int kind /* STMT_NOTE/STMT_STAGE/STMT_BREAK/STMT_CONTINUE */, char *name /* takes ownership (can be NULL) */, Expr *expr);
 Stmt* make_emit(Expr *expr);
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block);
 Stmt* make_repeat(Expr *cond, Stmt *body);

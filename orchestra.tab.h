@@ -70,30 +70,32 @@
      TYPE_STRING = 273,
      TRUE = 274,
      FALSE = 275,
-     EQ = 276,
-     NE = 277,
-     ASSIGN = 278,
-     AND = 279,
-     OR = 280,
-     PLUS = 281,
-     MINUS = 282,
-     MUL = 283,
-     DIV = 284,
-     LT = 285,
-     LE = 286,
-     GT = 287,
-     GE = 288,
-     NOT = 289,
-     SEMICOLON = 290,
-     COMMA = 291,
-     LPAREN = 292,
-     RPAREN = 293,
-     LBRACE = 294,
-     RBRACE = 295,
-     NUMBER = 296,
-     STRING_LITERAL = 297,
-     IDENTIFIER = 298,
-     UMINUS = 299
+     BREAK = 276,
+     CONTINUE = 277,
+     EQ = 278,
+     NE = 279,
+     ASSIGN = 280,
+     AND = 281,
+     OR = 282,
+     PLUS = 283,
+     MINUS = 284,
+     MUL = 285,
+     DIV = 286,
+     LT = 287,
+     LE = 288,
+     GT = 289,
+     GE = 290,
+     NOT = 291,
+     SEMICOLON = 292,
+     COMMA = 293,
+     LPAREN = 294,
+     RPAREN = 295,
+     LBRACE = 296,
+     RBRACE = 297,
+     NUMBER = 298,
+     STRING_LITERAL = 299,
+     IDENTIFIER = 300,
+     UMINUS = 301
    };
 #endif
 
@@ -115,7 +117,7 @@ typedef union YYSTYPE
 
 
 /* Line 1676 of yacc.c  */
-#line 119 "orchestra.tab.h"
+#line 121 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
