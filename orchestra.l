@@ -11,6 +11,7 @@
 %%
 
 "flow"      return FLOW;
+"symphony"  return SYMPHONY;
 "take"      return TAKE;
 "emit"      return EMIT;
 "return"    return RETURN;
@@ -52,6 +53,7 @@
 
 ";"         return SEMICOLON;
 ","         return COMMA;
+"."         return DOT;
 "("         return LPAREN;
 ")"         return RPAREN;
 "{"         return LBRACE;

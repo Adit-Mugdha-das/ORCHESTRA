@@ -14,6 +14,15 @@ int yyerror(const char *s);
 #include "interpreter.h"
 
 static Stmt *g_main_block = NULL;
+
+/* When parsing inside a class/ensemble, flow names are qualified as "Class.method". */
+static char *g_current_class = NULL;
+
+static char *qualify_name(const char *a, const char *b) {
+  char buf[512];
+  snprintf(buf, sizeof(buf), "%s.%s", a ? a : "", b ? b : "");
+  return arena_strdup(buf);
+}
 %}
 
 %code requires {
@@ -35,17 +44,18 @@ static Stmt *g_main_block = NULL;
   struct ExprList *expr_list;
   struct NameList *name_list;
   struct ChainPart *chain_parts;
+  struct FieldList *field_list;
 }
 
 /* keywords */
-%token FLOW TAKE EMIT RETURN NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
+%token FLOW SYMPHONY TAKE EMIT RETURN NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
 %token TRUE FALSE
 %token BREAK CONTINUE
 
 /* operators/symbols */
 %token EQ NE ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT GE NOT
-%token SEMICOLON COMMA LPAREN RPAREN LBRACE RBRACE
+%token SEMICOLON COMMA DOT LPAREN RPAREN LBRACE RBRACE
 
 /* typed tokens */
 %token <numlit> NUMBER
@@ -60,6 +70,10 @@ static Stmt *g_main_block = NULL;
 %type <chain_parts> comp_tail
 %type <ival> compop
 
+
+%type <sval> type_spec
+%type <field_list> ensemble_fields_opt ensemble_fields ensemble_field
+
 %left OR
 %left AND
 %left EQ NE
@@ -73,17 +87,90 @@ static Stmt *g_main_block = NULL;
 
 program:
       program flow_definition
+    | program symphony_definition
+    | program ensemble_definition
     | /* empty */
+    ;
+
+/* ---- symphony (class-like namespace MVP) ---- */
+symphony_definition:
+    SYMPHONY IDENTIFIER
+    {
+      /* Enter class/ensemble scope for name qualification. */
+      g_current_class = $2;
+    }
+    LBRACE symphony_members RBRACE
+    {
+      /* Exit class/ensemble scope. */
+      g_current_class = NULL;
+    }
+    ;
+
+symphony_members:
+      symphony_members flow_definition
+    | /* empty */
+    ;
+
+/* ---- ensemble (struct-like declaration MVP) ----
+   For now this only parses and is ignored at runtime.
+   Next step can store layout + allow instances/field access.
+*/
+ensemble_definition:
+    ENSEMBLE IDENTIFIER LBRACE ensemble_fields_opt RBRACE
+    { register_ensemble($2, $4); }
+    ;
+
+ensemble_fields_opt:
+      ensemble_fields
+    | /* empty */ { $$ = NULL; }
+    ;
+
+ensemble_fields:
+      ensemble_fields ensemble_field
+      {
+        /* append single-node list */
+        FieldList *tail = $1;
+        if (!tail) $$ = $2;
+        else {
+          while (tail->next) tail = tail->next;
+          tail->next = $2;
+          $$ = $1;
+        }
+      }
+    | ensemble_field { $$ = $1; }
+    ;
+
+ensemble_field:
+      type_spec IDENTIFIER SEMICOLON
+      {
+        $$ = fieldlist_append(NULL, $1, $2);
+      }
+    ;
+
+type_spec:
+      TYPE_INT { $$ = arena_strdup("int"); }
+    | TYPE_FLOAT { $$ = arena_strdup("float"); }
+    | TYPE_BOOL { $$ = arena_strdup("bool"); }
+    | TYPE_STRING { $$ = arena_strdup("string"); }
     ;
 
 flow_definition:
     FLOW IDENTIFIER parameter_part block
     {
-      register_flow($2, $3, $4);
-      if (strcmp($2, "main") == 0) {
-        g_main_block = $4;
-      } else if (!g_main_block) {
-        g_main_block = $4;
+      char *fname = $2;
+      if (g_current_class) {
+        fname = qualify_name(g_current_class, $2);
+      }
+
+      register_flow(fname, $3, $4);
+
+      /* Only top-level flows participate in entry selection. */
+      if (!g_current_class) {
+        if (strcmp($2, "main") == 0) {
+          g_main_block = $4;
+        } else if (!g_main_block) {
+          g_main_block = $4;
+        }
       }
     }
     ;
@@ -121,6 +208,9 @@ statement:
     | STAGE IDENTIFIER ASSIGN expression SEMICOLON
         { $$ = make_assign(STMT_STAGE, $2, $4); }
 
+    | STAGE IDENTIFIER DOT IDENTIFIER ASSIGN expression SEMICOLON
+      { $$ = make_field_stage($2, $4, $6); }
+
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
 
@@ -132,6 +222,9 @@ statement:
 
     | IDENTIFIER LPAREN arg_list_opt RPAREN SEMICOLON
       { $$ = make_expr_stmt(make_call($1, $3)); }
+
+    | IDENTIFIER DOT IDENTIFIER LPAREN arg_list_opt RPAREN SEMICOLON
+      { $$ = make_expr_stmt(make_call(qualify_name($1, $3), $5)); }
 
     | BREAK SEMICOLON
       { $$ = make_assign(STMT_BREAK, NULL, NULL); }
@@ -218,6 +311,8 @@ primary:
     | NUMBER { $$ = make_lit_num($1.num, $1.is_float); }
     | STRING_LITERAL { $$ = make_lit_string($1); free($1); }
     | IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_call($1, $3); }
+    | IDENTIFIER DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_call(qualify_name($1, $3), $5); }
+    | IDENTIFIER DOT IDENTIFIER { $$ = make_field($1, $3); }
     | IDENTIFIER { $$ = make_var($1); }
     ;
 

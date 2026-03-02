@@ -13,6 +13,8 @@ typedef struct {
     double num_value;  /* for int/float */
     char str_value[256];
     int bool_value;
+    void *ptr_value;   /* for "struct" instances */
+    char struct_type[64];
     int scope_level;
 } Symbol;
 
@@ -27,6 +29,10 @@ void insert_or_update_value(const char *name, const char *type, double num_value
 
 /* For NOTE: declaration-like in current scope (update if already in current scope). */
 void declare_or_update_current_scope_value(const char *name, const char *type, double num_value, const char *str_value, int bool_value);
+
+/* For ensembles (struct instances) */
+void insert_or_update_struct(const char *name, const char *struct_type, void *ptr_value);
+void declare_or_update_current_scope_struct(const char *name, const char *struct_type, void *ptr_value);
 
 const char* get_type_or_error(const char *name);
 

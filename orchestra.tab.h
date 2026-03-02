@@ -35,7 +35,7 @@
 /* "%code requires" blocks.  */
 
 /* Line 1676 of yacc.c  */
-#line 19 "orchestra.y"
+#line 28 "orchestra.y"
 
   struct Expr;
   struct Stmt;
@@ -56,50 +56,52 @@
       know about them.  */
    enum yytokentype {
      FLOW = 258,
-     TAKE = 259,
-     EMIT = 260,
-     RETURN = 261,
-     NOTE = 262,
-     FIXED = 263,
-     STAGE = 264,
-     ENSEMBLE = 265,
-     PLAY = 266,
-     BRANCH = 267,
-     ELSEWISE = 268,
-     REPEAT = 269,
-     SCORE = 270,
-     TYPE_INT = 271,
-     TYPE_FLOAT = 272,
-     TYPE_BOOL = 273,
-     TYPE_STRING = 274,
-     TRUE = 275,
-     FALSE = 276,
-     BREAK = 277,
-     CONTINUE = 278,
-     EQ = 279,
-     NE = 280,
-     ASSIGN = 281,
-     AND = 282,
-     OR = 283,
-     PLUS = 284,
-     MINUS = 285,
-     MUL = 286,
-     DIV = 287,
-     LT = 288,
-     LE = 289,
-     GT = 290,
-     GE = 291,
-     NOT = 292,
-     SEMICOLON = 293,
-     COMMA = 294,
-     LPAREN = 295,
-     RPAREN = 296,
-     LBRACE = 297,
-     RBRACE = 298,
-     NUMBER = 299,
-     STRING_LITERAL = 300,
-     IDENTIFIER = 301,
-     UMINUS = 302
+     SYMPHONY = 259,
+     TAKE = 260,
+     EMIT = 261,
+     RETURN = 262,
+     NOTE = 263,
+     FIXED = 264,
+     STAGE = 265,
+     ENSEMBLE = 266,
+     PLAY = 267,
+     BRANCH = 268,
+     ELSEWISE = 269,
+     REPEAT = 270,
+     SCORE = 271,
+     TYPE_INT = 272,
+     TYPE_FLOAT = 273,
+     TYPE_BOOL = 274,
+     TYPE_STRING = 275,
+     TRUE = 276,
+     FALSE = 277,
+     BREAK = 278,
+     CONTINUE = 279,
+     EQ = 280,
+     NE = 281,
+     ASSIGN = 282,
+     AND = 283,
+     OR = 284,
+     PLUS = 285,
+     MINUS = 286,
+     MUL = 287,
+     DIV = 288,
+     LT = 289,
+     LE = 290,
+     GT = 291,
+     GE = 292,
+     NOT = 293,
+     SEMICOLON = 294,
+     COMMA = 295,
+     DOT = 296,
+     LPAREN = 297,
+     RPAREN = 298,
+     LBRACE = 299,
+     RBRACE = 300,
+     NUMBER = 301,
+     STRING_LITERAL = 302,
+     IDENTIFIER = 303,
+     UMINUS = 304
    };
 #endif
 
@@ -110,7 +112,7 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 28 "orchestra.y"
+#line 37 "orchestra.y"
 
   struct { double num; int is_float; } numlit;
   char *sval;
@@ -121,11 +123,12 @@ typedef union YYSTYPE
   struct ExprList *expr_list;
   struct NameList *name_list;
   struct ChainPart *chain_parts;
+  struct FieldList *field_list;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 129 "orchestra.tab.h"
+#line 132 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

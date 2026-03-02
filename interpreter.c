@@ -58,6 +58,8 @@ typedef struct Value {
     double num;
     char str[256];
     int boolean;
+    void *ptr;
+    char struct_type[64];
 } Value;
 
 static FILE *g_out = NULL;
@@ -125,6 +127,8 @@ static Value value_num(double num, const char *type) {
     v.num = num;
     v.str[0] = '\0';
     v.boolean = 0;
+    v.ptr = NULL;
+    v.struct_type[0] = '\0';
     return v;
 }
 
@@ -134,6 +138,8 @@ static Value value_bool(int b) {
     v.num = 0;
     v.str[0] = '\0';
     v.boolean = b ? 1 : 0;
+    v.ptr = NULL;
+    v.struct_type[0] = '\0';
     return v;
 }
 
@@ -144,7 +150,112 @@ static Value value_string(const char *s) {
     v.boolean = 0;
     strncpy(v.str, s ? s : "", sizeof(v.str) - 1);
     v.str[sizeof(v.str) - 1] = '\0';
+    v.ptr = NULL;
+    v.struct_type[0] = '\0';
     return v;
+}
+
+static Value value_struct(const char *type_name, void *ptr) {
+    Value v;
+    strcpy(v.type, "struct");
+    v.num = 0;
+    v.str[0] = '\0';
+    v.boolean = 0;
+    v.ptr = ptr;
+    strncpy(v.struct_type, type_name ? type_name : "", sizeof(v.struct_type) - 1);
+    v.struct_type[sizeof(v.struct_type) - 1] = '\0';
+    return v;
+}
+
+/* -------------------------
+   Ensemble (struct) registry + instances
+   ------------------------- */
+
+typedef struct EnsembleDef {
+    char *name;
+    FieldList *fields;
+    struct EnsembleDef *next;
+} EnsembleDef;
+
+typedef struct StructFieldValue {
+    char *name;
+    Value value;
+    struct StructFieldValue *next;
+} StructFieldValue;
+
+typedef struct StructInstance {
+    char *type_name;
+    StructFieldValue *fields;
+} StructInstance;
+
+static EnsembleDef *g_ensembles = NULL;
+
+static EnsembleDef* find_ensemble_def(const char *name) {
+    for (EnsembleDef *e = g_ensembles; e; e = e->next) {
+        if (strcmp(e->name, name) == 0) return e;
+    }
+    return NULL;
+}
+
+FieldList* fieldlist_append(FieldList *list, char *type, char *name) {
+    FieldList *node = (FieldList*)arena_calloc(1, sizeof(FieldList));
+    if (!node) exit(1);
+    node->type = type;
+    node->name = name;
+    node->next = NULL;
+    if (!list) return node;
+    FieldList *cur = list;
+    while (cur->next) cur = cur->next;
+    cur->next = node;
+    return list;
+}
+
+void register_ensemble(char *name, FieldList *fields) {
+    if (!name) runtime_error("Null ensemble name");
+    if (find_ensemble_def(name)) runtime_error("Duplicate ensemble name");
+
+    EnsembleDef *node = (EnsembleDef*)arena_calloc(1, sizeof(EnsembleDef));
+    if (!node) exit(1);
+    node->name = name;
+    node->fields = fields;
+    node->next = g_ensembles;
+    g_ensembles = node;
+}
+
+int is_ensemble_type(const char *name) {
+    return find_ensemble_def(name) ? 1 : 0;
+}
+
+static StructFieldValue* find_struct_field(StructInstance *inst, const char *field) {
+    for (StructFieldValue *f = inst ? inst->fields : NULL; f; f = f->next) {
+        if (strcmp(f->name, field) == 0) return f;
+    }
+    return NULL;
+}
+
+static StructInstance* make_struct_instance(const char *type_name) {
+    EnsembleDef *def = find_ensemble_def(type_name);
+    if (!def) runtime_error("Unknown ensemble type");
+
+    StructInstance *inst = (StructInstance*)arena_calloc(1, sizeof(StructInstance));
+    if (!inst) exit(1);
+    inst->type_name = arena_strdup(type_name);
+    inst->fields = NULL;
+
+    for (FieldList *f = def->fields; f; f = f->next) {
+        StructFieldValue *fv = (StructFieldValue*)arena_calloc(1, sizeof(StructFieldValue));
+        if (!fv) exit(1);
+        fv->name = f->name;
+        if (strcmp(f->type, "int") == 0) fv->value = value_num(0, "int");
+        else if (strcmp(f->type, "float") == 0) fv->value = value_num(0, "float");
+        else if (strcmp(f->type, "bool") == 0) fv->value = value_bool(0);
+        else if (strcmp(f->type, "string") == 0) fv->value = value_string("");
+        else runtime_error("Unsupported ensemble field type");
+        fv->next = inst->fields;
+        inst->fields = fv;
+    }
+
+    return inst;
 }
 
 Expr* make_lit_num(double num, int is_float) {
@@ -180,6 +291,15 @@ Expr* make_var(char *name) {
     if (!e) exit(1);
     e->kind = EXPR_VAR;
     e->name = name;
+    return e;
+}
+
+Expr* make_field(char *base, char *field) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_FIELD;
+    e->base = base;
+    e->field = field;
     return e;
 }
 
@@ -304,6 +424,16 @@ Stmt* make_expr_stmt(Expr *expr) {
     return s;
 }
 
+Stmt* make_field_stage(char *base, char *field, Expr *expr) {
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_FIELD_STAGE;
+    s->base = base;
+    s->field = field;
+    s->expr = expr;
+    return s;
+}
+
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block) {
     Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
@@ -340,6 +470,7 @@ static Value symbol_to_value(Symbol *sym) {
     if (strcmp(sym->type, "float") == 0) return value_num(sym->num_value, "float");
     if (strcmp(sym->type, "bool") == 0) return value_bool(sym->bool_value);
     if (strcmp(sym->type, "string") == 0) return value_string(sym->str_value);
+    if (strcmp(sym->type, "struct") == 0) return value_struct(sym->struct_type, sym->ptr_value);
     runtime_error("Unknown symbol type");
     return value_num(0, "int");
 }
@@ -351,6 +482,8 @@ static void store_value_note(const char *name, Value v) {
         declare_or_update_current_scope_value(name, "bool", 0, NULL, v.boolean);
     else if (strcmp(v.type, "string") == 0)
         declare_or_update_current_scope_value(name, "string", 0, v.str, 0);
+    else if (strcmp(v.type, "struct") == 0)
+        declare_or_update_current_scope_struct(name, v.struct_type, v.ptr);
     else
         runtime_error("Unsupported value type in note");
 }
@@ -362,8 +495,33 @@ static void store_value_stage(const char *name, Value v) {
         insert_or_update_value(name, "bool", 0, NULL, v.boolean);
     else if (strcmp(v.type, "string") == 0)
         insert_or_update_value(name, "string", 0, v.str, 0);
+    else if (strcmp(v.type, "struct") == 0)
+        insert_or_update_struct(name, v.struct_type, v.ptr);
     else
         runtime_error("Unsupported value type in stage");
+}
+
+static Value coerce_to_field_type(Value v, const char *field_type) {
+    if (!field_type) runtime_error("Unknown field type");
+
+    if (strcmp(field_type, "int") == 0) {
+        if (!is_numeric_type(v.type)) runtime_error("Field assignment requires numeric type");
+        return value_num((double)((long long)v.num), "int");
+    }
+    if (strcmp(field_type, "float") == 0) {
+        if (!is_numeric_type(v.type)) runtime_error("Field assignment requires numeric type");
+        return value_num(v.num, "float");
+    }
+    if (strcmp(field_type, "bool") == 0) {
+        if (strcmp(v.type, "bool") != 0) runtime_error("Field assignment requires bool");
+        return value_bool(v.boolean);
+    }
+    if (strcmp(field_type, "string") == 0) {
+        if (strcmp(v.type, "string") != 0) runtime_error("Field assignment requires string");
+        return value_string(v.str);
+    }
+    runtime_error("Unsupported field type");
+    return value_num(0, "int");
 }
 
 static Value eval_bin_numeric(int op, Value a, Value b) {
@@ -400,9 +558,28 @@ static Value eval_expr(Expr *e) {
         return symbol_to_value(sym);
     }
 
+    if (e->kind == EXPR_FIELD) {
+        Symbol *sym = get_symbol_or_error(e->base);
+        if (strcmp(sym->type, "struct") != 0) runtime_error("Field access requires ensemble instance");
+        StructInstance *inst = (StructInstance*)sym->ptr_value;
+        if (!inst) runtime_error("Null ensemble instance");
+
+        StructFieldValue *fv = find_struct_field(inst, e->field);
+        if (!fv) runtime_error("Unknown field on ensemble instance");
+        return fv->value;
+    }
+
     if (e->kind == EXPR_CALL) {
         FlowHandle *flow = find_flow_handle(e->callee);
-        if (!flow) runtime_error("Call to undefined flow");
+        if (!flow) {
+            /* Constructor-like call: TypeName() creates an ensemble instance. */
+            if (is_ensemble_type(e->callee)) {
+                if (e->args) runtime_error("Ensemble constructor takes no arguments");
+                StructInstance *inst = make_struct_instance(e->callee);
+                return value_struct(e->callee, inst);
+            }
+            runtime_error("Call to undefined flow");
+        }
 
         if (g_call_depth >= g_max_call_depth) {
             free(flow);
@@ -575,6 +752,11 @@ static void print_value(Value v) {
         return;
     }
 
+    if (strcmp(v.type, "struct") == 0) {
+        fprintf(out, "%s\n", v.struct_type);
+        return;
+    }
+
     runtime_error("Unknown value type for emit");
 }
 
@@ -600,6 +782,29 @@ static ExecSignal exec_stmt(Stmt *s) {
         case STMT_STAGE: {
             Value v = eval_expr(s->expr);
             store_value_stage(s->name, v);
+            return SIG_OK;
+        }
+        case STMT_FIELD_STAGE: {
+            Symbol *sym = get_symbol_or_error(s->base);
+            if (strcmp(sym->type, "struct") != 0) runtime_error("Field assignment requires ensemble instance");
+            StructInstance *inst = (StructInstance*)sym->ptr_value;
+            if (!inst) runtime_error("Null ensemble instance");
+
+            EnsembleDef *def = find_ensemble_def(inst->type_name);
+            if (!def) runtime_error("Unknown ensemble type for instance");
+
+            const char *field_type = NULL;
+            for (FieldList *f = def->fields; f; f = f->next) {
+                if (strcmp(f->name, s->field) == 0) { field_type = f->type; break; }
+            }
+            if (!field_type) runtime_error("Unknown field on ensemble instance");
+
+            Value rhs = eval_expr(s->expr);
+            Value coerced = coerce_to_field_type(rhs, field_type);
+
+            StructFieldValue *fv = find_struct_field(inst, s->field);
+            if (!fv) runtime_error("Unknown field on ensemble instance");
+            fv->value = coerced;
             return SIG_OK;
         }
         case STMT_EMIT: {

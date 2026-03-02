@@ -11,6 +11,7 @@ call :run_one test_comparison_chaining_eqne.txt out_test_chain_eqne.txt || set F
 call :run_one test_scopes_cpp_symtab.txt out_test_scopes.txt || set FAIL=1
 call :run_one test_call_as_statement.txt out_test_call_stmt.txt || set FAIL=1
 call :run_one test_recursion.txt out_test_recursion.txt || set FAIL=1
+call :run_one test_class_namespace.txt out_test_class_namespace.txt || set FAIL=1
 
 if %FAIL%==0 (
   echo.
