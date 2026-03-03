@@ -106,8 +106,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "Invalid JSON"})
             return
 
+        action = payload.get("action", "run")
+        if action not in ("run", "emit_cpp"):
+            action = "run"
+
         code = payload.get("code", "")
         backend = payload.get("backend", "ast")
+        emit_style = payload.get("emitStyle", "cpp")
+        if emit_style not in ("cpp", "pseudo"):
+            emit_style = "cpp"
         if backend not in ("ast", "vm"):
             backend = "ast"
 
@@ -127,7 +134,10 @@ class Handler(BaseHTTPRequestHandler):
             out_path = td_path / "output.txt"
             in_path.write_text(code, encoding="utf-8", errors="replace")
 
-            cmd = [str(ORCH_EXE), str(in_path), str(out_path), "--backend", backend]
+            if action == "emit_cpp":
+                cmd = [str(ORCH_EXE), str(in_path), str(out_path), "--emit=cpp", f"--emit-style={emit_style}"]
+            else:
+                cmd = [str(ORCH_EXE), str(in_path), str(out_path), "--backend", backend]
 
             try:
                 proc = subprocess.run(

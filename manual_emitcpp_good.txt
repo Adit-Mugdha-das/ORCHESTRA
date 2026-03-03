@@ -1,0 +1,27 @@
+flow main take() {
+  note x = 10;
+  emit x;
+
+  {
+    note x = 2;
+    note y = x + 3;
+    emit x;
+    emit y;
+
+    stage y = y * 10;
+    emit y;
+  }
+
+  note i = 0;
+  repeat(i < 5) {
+    stage i = i + 1;
+    branch(i == 2) {
+      emit "skip";
+      continue;
+    } elsewise {
+      emit i;
+    }
+  }
+
+  emit x;
+}

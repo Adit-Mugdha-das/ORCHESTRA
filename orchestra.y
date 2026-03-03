@@ -13,6 +13,8 @@ int yyerror(const char *s);
 
 #include "interpreter.h"
 
+#include "cpp_printer.h"
+
 static Stmt *g_main_block = NULL;
 
 /* When parsing inside a class/ensemble, flow names are qualified as "Class.method". */
@@ -374,16 +376,28 @@ arg_list:
 
 int main(int argc, char *argv[]) {
   const char *backend = "ast";
+  const char *emit = NULL;
+  const char *emit_style = "cpp";
 
-  /* minimal CLI: orchestra.exe input.txt output.txt [--backend=ast|vm] */
-  if (argc >= 4) {
-    if (strcmp(argv[3], "--backend=vm") == 0) backend = "vm";
-    else if (strcmp(argv[3], "--backend=ast") == 0) backend = "ast";
-    else if (strcmp(argv[3], "--backend") == 0 && argc >= 5) backend = argv[4];
+  /* minimal CLI:
+      orchestra.exe input.txt output.txt [--backend=ast|vm]
+      orchestra.exe input.txt output.txt --emit=cpp
+      orchestra.exe input.txt output.txt --emit cpp
+      orchestra.exe input.txt output.txt --emit=cpp --emit-style=cpp|pseudo
+  */
+  for (int i = 3; i < argc; i++) {
+    if (strcmp(argv[i], "--backend=vm") == 0) backend = "vm";
+    else if (strcmp(argv[i], "--backend=ast") == 0) backend = "ast";
+    else if (strcmp(argv[i], "--backend") == 0 && i + 1 < argc) backend = argv[++i];
+    else if (strcmp(argv[i], "--emit=cpp") == 0) emit = "cpp";
+    else if (strcmp(argv[i], "--emit") == 0 && i + 1 < argc) emit = argv[++i];
+    else if (strcmp(argv[i], "--emit-style=cpp") == 0) emit_style = "cpp";
+    else if (strcmp(argv[i], "--emit-style=pseudo") == 0) emit_style = "pseudo";
+    else if (strcmp(argv[i], "--emit-style") == 0 && i + 1 < argc) emit_style = argv[++i];
   }
 
   if (argc < 3) {
-    printf("Usage: %s input.txt output.txt [--backend=ast|vm]\n", argv[0]);
+    printf("Usage: %s input.txt output.txt [--backend=ast|vm] [--emit=cpp] [--emit-style=cpp|pseudo]\n", argv[0]);
     return 1;
   }
 
@@ -402,7 +416,11 @@ int main(int argc, char *argv[]) {
     yyparse();
 
     if (g_main_block) {
-      if (strcmp(backend, "vm") == 0) {
+      if (emit && strcmp(emit, "cpp") == 0) {
+        OrchCppEmitStyle style = ORCH_CPP_STYLE_CPP;
+        if (emit_style && strcmp(emit_style, "pseudo") == 0) style = ORCH_CPP_STYLE_PSEUDO;
+        dump_cpp_program_with_style(g_main_block, yyout, style);
+      } else if (strcmp(backend, "vm") == 0) {
         extern int execute_program_vm(struct Stmt *root, FILE *out);
         execute_program_vm(g_main_block, yyout);
       } else {

@@ -18,6 +18,10 @@ const DEFAULT_CODE = `flow main take() {
 const state = {
   editor: null,
   useFallback: false,
+  activeView: "run", // 'run' | 'cpp'
+  lastRunView: null,
+  lastCppView: null,
+  lastCppStyle: null,
 };
 
 function $(id) {
@@ -26,6 +30,42 @@ function $(id) {
 
 function setStatus(text) {
   $("status").textContent = text;
+}
+
+function applyView(view) {
+  if (!view) {
+    $("out").textContent = "";
+    $("err").textContent = "";
+    $("rc").textContent = "rc: —";
+    $("time").textContent = "— ms";
+    setStatus("Ready");
+    return;
+  }
+
+  $("out").textContent = view.outText ?? "";
+  $("err").textContent = view.errText ?? "";
+  $("rc").textContent = `rc: ${view.rc}`;
+  $("time").textContent = `${view.timeMs} ms`;
+  setStatus(view.statusText ?? (view.rc === 0 ? "Done" : "Done (with errors)"));
+}
+
+function setShowCppButtonState() {
+  const showBtn = $("showCpp");
+  if (!showBtn) return;
+  showBtn.textContent = state.activeView === "cpp" ? "Hide C++" : "Show C++";
+}
+
+function getEmitStyle() {
+  const sel = $("emitStyle");
+  const v = sel ? sel.value : "cpp";
+  return v === "pseudo" ? "pseudo" : "cpp";
+}
+
+async function refreshCppIfVisible() {
+  if (state.activeView !== "cpp") return;
+  // Force refresh without toggling off.
+  state.lastCppView = null;
+  await emitCppAndShow();
 }
 
 function getCode() {
@@ -79,8 +119,11 @@ function initEditor() {
 
 async function runCode() {
   const runBtn = $("run");
+  const showBtn = $("showCpp");
   runBtn.disabled = true;
+  if (showBtn) showBtn.disabled = true;
 
+  // Only clear the visible panel; keep cached views for toggling.
   $("out").textContent = "";
   $("err").textContent = "";
   $("rc").textContent = "rc: —";
@@ -96,37 +139,123 @@ async function runCode() {
     const resp = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, backend }),
+      body: JSON.stringify({ code, backend, action: "run" }),
     });
 
     const data = await resp.json();
     const elapsed = Math.round(performance.now() - started);
 
-    $("rc").textContent = `rc: ${data.rc}`;
-    $("time").textContent = `${data.duration_ms ?? elapsed} ms`;
+    const timeMs = data.duration_ms ?? elapsed;
 
-    const outParts = [];
-    if (data.out) outParts.push(data.out);
-    if (data.stdout) outParts.push(data.stdout);
-    $("out").textContent = outParts.join("") || "(no output)";
+    const outTextCombined = (data.out || "") + (data.stdout || "");
+    const errTextCombined = (data.error ? data.error + "\n" : "") + (data.stderr || "");
 
-    const errParts = [];
-    if (data.error) errParts.push(data.error + "\n");
-    if (data.stderr) errParts.push(data.stderr);
-    // If the tool wrote errors into the output file, surface them here too.
-    if (data.rc !== 0 && data.out && !data.stderr) errParts.push(data.out);
-    $("err").textContent = errParts.join("") || (data.rc === 0 ? "" : "(error)");
+    const trimmedOut = (data.out || "").trimStart();
+    const isSyntaxError = trimmedOut.startsWith("Syntax Error:");
 
-    setStatus(data.rc === 0 ? "Done" : "Done (with errors)");
+    const extra = data.rc !== 0 && data.out && !data.stderr ? data.out : "";
+    const view = {
+      rc: data.rc,
+      timeMs,
+      outText: isSyntaxError ? "" : (outTextCombined || "(no output)"),
+      errText: isSyntaxError
+        ? (data.out || "")
+        : ((errTextCombined + extra) || (data.rc === 0 ? "" : "(error)")),
+      statusText: data.rc === 0 ? "Done" : "Done (with errors)",
+    };
+
+    state.lastRunView = view;
+    if (state.activeView === "run") applyView(view);
   } catch (e) {
     $("err").textContent = String(e);
     setStatus("Failed");
   } finally {
     runBtn.disabled = false;
+    if (showBtn) showBtn.disabled = false;
+  }
+}
+
+async function showCpp() {
+  // Toggle behavior:
+  // - If currently showing C++, hide it and restore last Run output.
+  // - If not showing C++, show emitted C++ (cached if available).
+  if (state.activeView === "cpp") {
+    state.activeView = "run";
+    applyView(state.lastRunView);
+    setShowCppButtonState();
+    return;
+  }
+
+  state.activeView = "cpp";
+  setShowCppButtonState();
+
+  await emitCppAndShow();
+}
+
+async function emitCppAndShow() {
+  const style = getEmitStyle();
+
+  if (state.lastCppView && state.lastCppStyle === style) {
+    applyView(state.lastCppView);
+    return;
+  }
+
+  const runBtn = $("run");
+  const showBtn = $("showCpp");
+  if (showBtn) showBtn.disabled = true;
+  if (runBtn) runBtn.disabled = true;
+
+  $("out").textContent = "";
+  $("err").textContent = "";
+  $("rc").textContent = "rc: —";
+  $("time").textContent = "— ms";
+
+  const code = getCode();
+
+  setStatus("Emitting C++…");
+  const started = performance.now();
+
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, action: "emit_cpp", emitStyle: style }),
+    });
+
+    const data = await resp.json();
+    const elapsed = Math.round(performance.now() - started);
+    const timeMs = data.duration_ms ?? elapsed;
+
+    const trimmedOut = (data.out || "").trimStart();
+    const isSyntaxError = trimmedOut.startsWith("Syntax Error:");
+    const errText = (data.error ? data.error + "\n" : "") + (data.stderr || "");
+
+    const view = {
+      rc: data.rc,
+      timeMs,
+      outText: isSyntaxError ? "" : (data.out || "(no output)"),
+      errText: isSyntaxError ? (data.out || "") : (errText || (data.rc === 0 ? "" : "(error)")),
+      statusText: data.rc === 0 ? "Done" : "Done (with errors)",
+    };
+
+    state.lastCppView = view;
+    state.lastCppStyle = style;
+    if (state.activeView === "cpp") applyView(view);
+  } catch (e) {
+    $("err").textContent = String(e);
+    setStatus("Failed");
+  } finally {
+    if (showBtn) showBtn.disabled = false;
+    if (runBtn) runBtn.disabled = false;
   }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   initEditor();
   $("run").addEventListener("click", runCode);
+  const showBtn = $("showCpp");
+  if (showBtn) showBtn.addEventListener("click", showCpp);
+  const styleSel = $("emitStyle");
+  if (styleSel) styleSel.addEventListener("change", refreshCppIfVisible);
+  setShowCppButtonState();
 });

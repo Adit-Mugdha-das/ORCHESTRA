@@ -25,8 +25,11 @@ g++ -c bytecode.cpp -o bytecode.o || exit /b 1
 rem Compile VM backend (AST -> bytecode for now) as C++
 g++ -c vm_backend.cpp -o vm_backend.o || exit /b 1
 
+rem Compile AST -> C++ pretty printer (learning/debug output)
+g++ -c cpp_printer.cpp -o cpp_printer.o || exit /b 1
+
 rem Link with C++ linker
 
-g++ orchestra.tab.o lex.yy.o interpreter.o symbol_table.o flow_registry.o bytecode.o vm_backend.o -o orchestra.exe || exit /b 1
+g++ orchestra.tab.o lex.yy.o interpreter.o symbol_table.o flow_registry.o bytecode.o vm_backend.o cpp_printer.o -o orchestra.exe || exit /b 1
 
 echo Built orchestra.exe (C parser/lexer + C++-compiled interpreter)

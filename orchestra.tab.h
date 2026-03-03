@@ -35,7 +35,7 @@
 /* "%code requires" blocks.  */
 
 /* Line 1676 of yacc.c  */
-#line 29 "orchestra.y"
+#line 31 "orchestra.y"
 
   struct Expr;
   struct Stmt;
@@ -117,7 +117,7 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 38 "orchestra.y"
+#line 40 "orchestra.y"
 
   struct { double num; int is_float; } numlit;
   char *sval;
