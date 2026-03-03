@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 static FILE* g_compile_out = nullptr;
 
@@ -15,6 +16,14 @@ static void vm_compile_error(FILE* out, const char* msg) {
 }
 
 static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e);
+static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s);
+
+struct LoopContext {
+    size_t continue_target;
+    std::vector<size_t> break_jumps;
+};
+
+static std::vector<LoopContext> g_loops;
 
 static void compile_lit(BytecodeProgram& prog, BytecodeFunc& fn, const Expr* e) {
     if (std::strcmp(e->lit_type, "int") == 0) {
@@ -138,12 +147,21 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
     }
 }
 
-static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s);
-
 static void compile_stmt_list(BytecodeProgram& prog, BytecodeFunc& fn, StmtList* list) {
     for (StmtList* cur = list; cur; cur = cur->next) {
         compile_stmt(prog, fn, cur->stmt);
     }
+}
+
+static size_t emit_jump(BytecodeFunc& fn, OpCode op, int target_placeholder = 0) {
+    const size_t at = fn.code.size();
+    fn.emit(op, target_placeholder);
+    return at;
+}
+
+static void patch_jump(BytecodeFunc& fn, size_t at, size_t target) {
+    if (at >= fn.code.size()) return;
+    fn.code[at].a = (int)target;
 }
 
 static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
@@ -183,6 +201,69 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             compile_expr(prog, fn, s->expr);
             fn.emit(OpCode::POP);
             return;
+        case STMT_BRANCH: {
+            /* branch(cond) { then } elsewise { else } */
+            compile_expr(prog, fn, s->cond);
+            const size_t jmp_false = emit_jump(fn, OpCode::JMP_IF_FALSE, 0);
+
+            compile_stmt(prog, fn, s->then_block);
+
+            if (s->else_block) {
+                const size_t jmp_end = emit_jump(fn, OpCode::JMP, 0);
+                const size_t else_ip = fn.code.size();
+                patch_jump(fn, jmp_false, else_ip);
+                compile_stmt(prog, fn, s->else_block);
+                const size_t end_ip = fn.code.size();
+                patch_jump(fn, jmp_end, end_ip);
+            } else {
+                const size_t end_ip = fn.code.size();
+                patch_jump(fn, jmp_false, end_ip);
+            }
+            return;
+        }
+        case STMT_REPEAT: {
+            /* repeat(cond){ body } */
+            const size_t loop_begin = fn.code.size();
+
+            compile_expr(prog, fn, s->cond);
+            const size_t jmp_exit = emit_jump(fn, OpCode::JMP_IF_FALSE, 0);
+
+            LoopContext ctx;
+            ctx.continue_target = loop_begin;
+            g_loops.push_back(ctx);
+
+            compile_stmt(prog, fn, s->body);
+
+            const LoopContext done = g_loops.back();
+            g_loops.pop_back();
+
+            fn.emit(OpCode::JMP, (int)loop_begin);
+
+            const size_t loop_end = fn.code.size();
+            patch_jump(fn, jmp_exit, loop_end);
+
+            for (size_t bj : done.break_jumps) {
+                patch_jump(fn, bj, loop_end);
+            }
+            return;
+        }
+        case STMT_BREAK: {
+            if (g_loops.empty()) {
+                vm_compile_error(g_compile_out, "break used outside repeat");
+                std::exit(1);
+            }
+            const size_t at = emit_jump(fn, OpCode::JMP, 0);
+            g_loops.back().break_jumps.push_back(at);
+            return;
+        }
+        case STMT_CONTINUE: {
+            if (g_loops.empty()) {
+                vm_compile_error(g_compile_out, "continue used outside repeat");
+                std::exit(1);
+            }
+            fn.emit(OpCode::JMP, (int)g_loops.back().continue_target);
+            return;
+        }
         default:
             vm_compile_error(g_compile_out, "Statement kind not supported yet (current VM milestone)");
             std::exit(1);

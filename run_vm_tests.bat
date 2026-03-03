@@ -9,6 +9,7 @@ set FAIL=0
 call :compare_one test_vm_exprs.txt out_vm_exprs_ast.txt out_vm_exprs_vm.txt || set FAIL=1
 call :compare_one test_vm_blocks.txt out_vm_blocks_ast.txt out_vm_blocks_vm.txt || set FAIL=1
 call :compare_one test_vm_shadowing.txt out_vm_shadow_ast.txt out_vm_shadow_vm.txt || set FAIL=1
+call :compare_one test_vm_control_flow.txt out_vm_cf_ast.txt out_vm_cf_vm.txt || set FAIL=1
 
 if %FAIL%==0 (
   echo.
