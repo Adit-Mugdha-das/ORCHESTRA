@@ -1,1 +1,8 @@
-Runtime Error: Recursion limit exceeded (max 200) while calling 'infinite'
+[VM] Bytecode IR smoke dump (Milestone 1)
+0: PUSH_INT 1 0
+1: PUSH_INT 2 0
+2: PUSH_INT 3 0
+3: MUL 0 0
+4: ADD 0 0
+5: EMIT 0 0
+6: RET 0 0

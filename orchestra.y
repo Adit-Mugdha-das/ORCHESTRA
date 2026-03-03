@@ -371,10 +371,19 @@ arg_list:
 %%
 
 int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        printf("Usage: %s input.txt output.txt\n", argv[0]);
-        return 1;
-    }
+  const char *backend = "ast";
+
+  /* minimal CLI: orchestra.exe input.txt output.txt [--backend=ast|vm] */
+  if (argc >= 4) {
+    if (strcmp(argv[3], "--backend=vm") == 0) backend = "vm";
+    else if (strcmp(argv[3], "--backend=ast") == 0) backend = "ast";
+    else if (strcmp(argv[3], "--backend") == 0 && argc >= 5) backend = argv[4];
+  }
+
+  if (argc < 3) {
+    printf("Usage: %s input.txt output.txt [--backend=ast|vm]\n", argv[0]);
+    return 1;
+  }
 
     FILE *input = fopen(argv[1], "r");
     FILE *output = fopen(argv[2], "w");
@@ -386,6 +395,19 @@ int main(int argc, char *argv[]) {
 
     yyin = input;
     yyout = output;
+
+    if (strcmp(backend, "vm") == 0) {
+      /* Milestone 1: verify IR data structures + dump without full compiler/VM. */
+      extern void bytecode_unit_smoke(void *c_file /* FILE* */);
+      bytecode_unit_smoke(output);
+
+      free_all_flows();
+      arena_free_all();
+
+      fclose(input);
+      fclose(output);
+      return 0;
+    }
 
     /* global scope already 0; flow blocks will push/pop */
     yyparse();

@@ -19,8 +19,11 @@ g++ -c symbol_table.cpp -o symbol_table.o || exit /b 1
 rem Compile flow registry as C++
 g++ -c flow_registry.cpp -o flow_registry.o || exit /b 1
 
+rem Compile bytecode IR module as C++
+g++ -c bytecode.cpp -o bytecode.o || exit /b 1
+
 rem Link with C++ linker
 
-g++ orchestra.tab.o lex.yy.o interpreter.o symbol_table.o flow_registry.o -o orchestra.exe || exit /b 1
+g++ orchestra.tab.o lex.yy.o interpreter.o symbol_table.o flow_registry.o bytecode.o -o orchestra.exe || exit /b 1
 
 echo Built orchestra.exe (C parser/lexer + C++-compiled interpreter)
