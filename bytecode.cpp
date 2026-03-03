@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "symbol_table.h"
+
 namespace {
 
 static void vm_fail(FILE* out, const char* msg) {
@@ -83,6 +85,90 @@ static void print_value(FILE* out, const VMValue& v) {
     }
 }
 
+static void store_name_note(FILE* out, const char* name, const VMValue& v) {
+    if (!name) {
+        vm_fail(out, "Null variable name");
+        return;
+    }
+    if (v.tag == VTag::INT) {
+        declare_or_update_current_scope_value(name, "int", v.num, "", 0);
+        return;
+    }
+    if (v.tag == VTag::FLOAT) {
+        declare_or_update_current_scope_value(name, "float", v.num, "", 0);
+        return;
+    }
+    if (v.tag == VTag::BOOL) {
+        declare_or_update_current_scope_value(name, "bool", 0, "", v.boolean ? 1 : 0);
+        return;
+    }
+    if (v.tag == VTag::STR) {
+        declare_or_update_current_scope_value(name, "string", 0, v.str ? v.str : "", 0);
+        return;
+    }
+
+    vm_fail(out, "Unsupported value type for NOTE");
+}
+
+static void store_name_stage(FILE* out, const char* name, const VMValue& v) {
+    if (!name) {
+        vm_fail(out, "Null variable name");
+        return;
+    }
+    if (v.tag == VTag::INT) {
+        insert_or_update_value(name, "int", v.num, "", 0);
+        return;
+    }
+    if (v.tag == VTag::FLOAT) {
+        insert_or_update_value(name, "float", v.num, "", 0);
+        return;
+    }
+    if (v.tag == VTag::BOOL) {
+        insert_or_update_value(name, "bool", 0, "", v.boolean ? 1 : 0);
+        return;
+    }
+    if (v.tag == VTag::STR) {
+        insert_or_update_value(name, "string", 0, v.str ? v.str : "", 0);
+        return;
+    }
+
+    vm_fail(out, "Unsupported value type for STAGE");
+}
+
+static bool load_name(FILE* out, const char* name, VMValue* out_v) {
+    if (!out_v) return false;
+    if (!name) {
+        vm_fail(out, "Null variable name");
+        return false;
+    }
+
+    Symbol* sym = get_symbol_or_error(name);
+    if (!sym) {
+        vm_fail(out, "Undefined variable");
+        return false;
+    }
+
+    if (std::strcmp(sym->type, "int") == 0) {
+        *out_v = v_int((int)sym->num_value);
+        return true;
+    }
+    if (std::strcmp(sym->type, "float") == 0) {
+        *out_v = v_float(sym->num_value);
+        return true;
+    }
+    if (std::strcmp(sym->type, "bool") == 0) {
+        *out_v = v_bool(sym->bool_value != 0);
+        return true;
+    }
+    if (std::strcmp(sym->type, "string") == 0) {
+        *out_v = v_str(sym->str_value);
+        return true;
+    }
+
+    vm_fail(out, "Unsupported variable type in Milestone 5");
+    return false;
+}
+
 static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const BytecodeFunc& fn) {
     static const int STACK_MAX = 1024;
     VMValue stack[STACK_MAX];
@@ -137,6 +223,41 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
             case OpCode::POP:
                 (void)pop();
                 break;
+
+            case OpCode::SCOPE_PUSH:
+                push_scope();
+                break;
+            case OpCode::SCOPE_POP:
+                pop_scope();
+                break;
+            case OpCode::LOAD_NAME: {
+                if (ins.a < 0 || (size_t)ins.a >= prog.const_str.size()) {
+                    vm_fail(out, "Bad const_str index for LOAD_NAME");
+                    return false;
+                }
+                VMValue v;
+                if (!load_name(out, prog.const_str[(size_t)ins.a].c_str(), &v)) return false;
+                if (!push(v)) return false;
+                break;
+            }
+            case OpCode::NOTE_NAME: {
+                if (ins.a < 0 || (size_t)ins.a >= prog.const_str.size()) {
+                    vm_fail(out, "Bad const_str index for NOTE_NAME");
+                    return false;
+                }
+                VMValue v = pop();
+                store_name_note(out, prog.const_str[(size_t)ins.a].c_str(), v);
+                break;
+            }
+            case OpCode::STAGE_NAME: {
+                if (ins.a < 0 || (size_t)ins.a >= prog.const_str.size()) {
+                    vm_fail(out, "Bad const_str index for STAGE_NAME");
+                    return false;
+                }
+                VMValue v = pop();
+                store_name_stage(out, prog.const_str[(size_t)ins.a].c_str(), v);
+                break;
+            }
 
             case OpCode::NEG: {
                 VMValue a = pop();
@@ -304,6 +425,11 @@ const char* opcode_name(OpCode op) {
         case OpCode::PUSH_BOOL: return "PUSH_BOOL";
         case OpCode::PUSH_STR: return "PUSH_STR";
         case OpCode::POP: return "POP";
+        case OpCode::SCOPE_PUSH: return "SCOPE_PUSH";
+        case OpCode::SCOPE_POP: return "SCOPE_POP";
+        case OpCode::LOAD_NAME: return "LOAD_NAME";
+        case OpCode::NOTE_NAME: return "NOTE_NAME";
+        case OpCode::STAGE_NAME: return "STAGE_NAME";
         case OpCode::ADD: return "ADD";
         case OpCode::SUB: return "SUB";
         case OpCode::MUL: return "MUL";

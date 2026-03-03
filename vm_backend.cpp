@@ -89,6 +89,15 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
         case EXPR_LIT:
             compile_lit(prog, fn, e);
             return;
+        case EXPR_VAR: {
+            if (!e->name) {
+                vm_compile_error(g_compile_out, "Null variable name");
+                std::exit(1);
+            }
+            const int id = prog.add_str(e->name);
+            fn.emit(OpCode::LOAD_NAME, id);
+            return;
+        }
         case EXPR_UNARY:
             compile_unary(prog, fn, e);
             return;
@@ -146,10 +155,36 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             fn.emit(OpCode::EMIT);
             return;
         case STMT_BLOCK:
+            fn.emit(OpCode::SCOPE_PUSH);
             compile_stmt_list(prog, fn, s->list);
+            fn.emit(OpCode::SCOPE_POP);
+            return;
+        case STMT_NOTE: {
+            if (!s->name) {
+                vm_compile_error(g_compile_out, "Null NOTE name");
+                std::exit(1);
+            }
+            compile_expr(prog, fn, s->expr);
+            const int id = prog.add_str(s->name);
+            fn.emit(OpCode::NOTE_NAME, id);
+            return;
+        }
+        case STMT_STAGE: {
+            if (!s->name) {
+                vm_compile_error(g_compile_out, "Null STAGE name");
+                std::exit(1);
+            }
+            compile_expr(prog, fn, s->expr);
+            const int id = prog.add_str(s->name);
+            fn.emit(OpCode::STAGE_NAME, id);
+            return;
+        }
+        case STMT_EXPR:
+            compile_expr(prog, fn, s->expr);
+            fn.emit(OpCode::POP);
             return;
         default:
-            vm_compile_error(g_compile_out, "Statement kind not supported yet (Milestone 3/4)");
+            vm_compile_error(g_compile_out, "Statement kind not supported yet (current VM milestone)");
             std::exit(1);
     }
 }

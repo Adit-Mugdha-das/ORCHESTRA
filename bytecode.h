@@ -18,6 +18,13 @@ enum class OpCode {
     PUSH_STR,   /* a = const_str index */
     POP,
 
+    /* Variables + scopes (Milestone 5, name-based) */
+    SCOPE_PUSH,
+    SCOPE_POP,
+    LOAD_NAME,  /* a = const_str index */
+    NOTE_NAME,  /* a = const_str index; pops 1 value */
+    STAGE_NAME, /* a = const_str index; pops 1 value */
+
     /* Arithmetic */
     ADD,
     SUB,

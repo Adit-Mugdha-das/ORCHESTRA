@@ -1,0 +1,15 @@
+flow main take() {
+  note x = 1;
+  emit x;
+
+  {
+    note x = 2;
+    emit x;
+    stage x = x + 3;
+    emit x;
+  }
+
+  emit x;
+  stage x = x + 9;
+  emit x;
+}
