@@ -60,6 +60,8 @@
 "."         return DOT;
 "("         return LPAREN;
 ")"         return RPAREN;
+"["         return LBRACKET;
+"]"         return RBRACKET;
 "{"         return LBRACE;
 "}"         return RBRACE;
 

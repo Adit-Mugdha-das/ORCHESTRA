@@ -53,6 +53,17 @@ static void set_symbol_struct(Symbol &s, const char *struct_type, void *ptr_valu
     s.scope_level = current_scope_level();
 }
 
+static void set_symbol_array(Symbol &s, void *ptr_value) {
+    std::strncpy(s.type, "array", sizeof(s.type) - 1);
+    s.type[sizeof(s.type) - 1] = '\0';
+    s.num_value = 0;
+    s.bool_value = 0;
+    s.str_value[0] = '\0';
+    s.ptr_value = ptr_value;
+    s.struct_type[0] = '\0';
+    s.scope_level = current_scope_level();
+}
+
 static Symbol* lookup_any(const char *name) {
     if (!name) return nullptr;
     for (int i = (int)g_scopes.size() - 1; i >= 0; --i) {
@@ -158,6 +169,38 @@ void declare_or_update_current_scope_struct(const char *name, const char *struct
     std::strncpy(s.name, name, sizeof(s.name) - 1);
     s.name[sizeof(s.name) - 1] = '\0';
     set_symbol_struct(s, struct_type, ptr_value);
+    g_scopes.back().symbols[std::string(name)] = s;
+}
+
+void insert_or_update_array(const char *name, void *ptr_value) {
+    if (!name) return;
+
+    Symbol *existing = lookup_any(name);
+    if (existing) {
+        set_symbol_array(*existing, ptr_value);
+        return;
+    }
+
+    Symbol s{};
+    std::strncpy(s.name, name, sizeof(s.name) - 1);
+    s.name[sizeof(s.name) - 1] = '\0';
+    set_symbol_array(s, ptr_value);
+    g_scopes.back().symbols[std::string(name)] = s;
+}
+
+void declare_or_update_current_scope_array(const char *name, void *ptr_value) {
+    if (!name) return;
+
+    Symbol *existing = lookup_in_current_scope(name);
+    if (existing) {
+        set_symbol_array(*existing, ptr_value);
+        return;
+    }
+
+    Symbol s{};
+    std::strncpy(s.name, name, sizeof(s.name) - 1);
+    s.name[sizeof(s.name) - 1] = '\0';
+    set_symbol_array(s, ptr_value);
     g_scopes.back().symbols[std::string(name)] = s;
 }
 

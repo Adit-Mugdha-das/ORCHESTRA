@@ -25,9 +25,9 @@ typedef struct ChainPart ChainPart;
 typedef struct FieldList FieldList;
 
 /* Expression/statement kinds */
-enum { EXPR_LIT = 1, EXPR_VAR, EXPR_FIELD, EXPR_DOTCALL, EXPR_SUPERCALL, EXPR_SUPERCTOR, EXPR_BIN, EXPR_UNARY, EXPR_CALL, EXPR_CHAIN };
+enum { EXPR_LIT = 1, EXPR_VAR, EXPR_FIELD, EXPR_DOTCALL, EXPR_SUPERCALL, EXPR_SUPERCTOR, EXPR_BIN, EXPR_UNARY, EXPR_CALL, EXPR_CHAIN, EXPR_ARRAYLIT, EXPR_INDEX };
 
-enum { STMT_NOTE = 1, STMT_STAGE, STMT_FIELD_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR };
+enum { STMT_NOTE = 1, STMT_STAGE, STMT_FIELD_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR, STMT_INDEX_STAGE };
 
 /* Internal operator codes for the interpreter */
 enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_GE, OP_EQ, OP_NE, OP_AND, OP_OR, OP_NOT, OP_NEG };
@@ -59,6 +59,13 @@ struct Expr {
 
     /* super ctor call: super(args) (calls parent init) */
     ExprList *super_ctor_args;
+
+    /* array literal: [a,b,c] */
+    ExprList *array_elems;
+
+    /* index: target[index] */
+    Expr *index_target;
+    Expr *index_expr;
 
     /* binary */
     int op;
@@ -110,6 +117,9 @@ struct Stmt {
     char *base;
     char *field;
 
+    /* for index stage: name[index] = expr */
+    Expr *index;
+
     /* block */
     StmtList *list;
 
@@ -129,6 +139,8 @@ Expr* make_field(char *base /* takes ownership */, char *field /* takes ownershi
 Expr* make_dotcall(char *base /* takes ownership */, char *member /* takes ownership */, ExprList *args);
 Expr* make_supercall(char *member /* takes ownership */, ExprList *args);
 Expr* make_superctor(ExprList *args);
+Expr* make_arraylit(ExprList *elems);
+Expr* make_index(Expr *target, Expr *index);
 Expr* make_bin(int op, Expr *l, Expr *r);
 Expr* make_unary(int op, Expr *operand);
 Expr* make_call(char *callee /* takes ownership */, ExprList *args);
@@ -145,6 +157,7 @@ Stmt* make_assign(int kind /* STMT_NOTE/STMT_STAGE/STMT_BREAK/STMT_CONTINUE */, 
 Stmt* make_emit(Expr *expr);
 Stmt* make_expr_stmt(Expr *expr);
 Stmt* make_field_stage(char *base /* takes ownership */, char *field /* takes ownership */, Expr *expr);
+Stmt* make_index_stage(char *name /* takes ownership */, Expr *index, Expr *expr);
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block);
 Stmt* make_repeat(Expr *cond, Stmt *body);
 Stmt* make_return(Expr *expr);

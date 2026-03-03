@@ -34,6 +34,10 @@ void declare_or_update_current_scope_value(const char *name, const char *type, d
 void insert_or_update_struct(const char *name, const char *struct_type, void *ptr_value);
 void declare_or_update_current_scope_struct(const char *name, const char *struct_type, void *ptr_value);
 
+/* For arrays */
+void insert_or_update_array(const char *name, void *ptr_value);
+void declare_or_update_current_scope_array(const char *name, void *ptr_value);
+
 const char* get_type_or_error(const char *name);
 
 #ifdef __cplusplus

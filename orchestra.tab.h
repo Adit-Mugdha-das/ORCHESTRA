@@ -99,12 +99,14 @@
      RPAREN = 299,
      LBRACE = 300,
      RBRACE = 301,
-     NUMBER = 302,
-     STRING_LITERAL = 303,
-     IDENTIFIER = 304,
-     THIS = 305,
-     SUPER = 306,
-     UMINUS = 307
+     LBRACKET = 302,
+     RBRACKET = 303,
+     NUMBER = 304,
+     STRING_LITERAL = 305,
+     IDENTIFIER = 306,
+     THIS = 307,
+     SUPER = 308,
+     UMINUS = 309
    };
 #endif
 
@@ -131,7 +133,7 @@ typedef union YYSTYPE
 
 
 /* Line 1676 of yacc.c  */
-#line 135 "orchestra.tab.h"
+#line 137 "orchestra.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

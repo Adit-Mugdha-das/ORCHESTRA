@@ -58,6 +58,7 @@ static char *qualify_name(const char *a, const char *b) {
 /* operators/symbols */
 %token EQ NE ASSIGN AND OR PLUS MINUS MUL DIV LT LE GT GE NOT
 %token SEMICOLON COMMA DOT LPAREN RPAREN LBRACE RBRACE
+%token LBRACKET RBRACKET
 
 /* typed tokens */
 %token <numlit> NUMBER
@@ -231,6 +232,9 @@ statement:
     | STAGE IDENTIFIER ASSIGN expression SEMICOLON
         { $$ = make_assign(STMT_STAGE, $2, $4); }
 
+    | STAGE IDENTIFIER LBRACKET expression RBRACKET ASSIGN expression SEMICOLON
+      { $$ = make_index_stage($2, $4, $7); }
+
     | STAGE IDENTIFIER DOT IDENTIFIER ASSIGN expression SEMICOLON
       { $$ = make_field_stage($2, $4, $6); }
 
@@ -335,10 +339,12 @@ unary:
 
 primary:
       LPAREN expression RPAREN { $$ = $2; }
+    | LBRACKET arg_list_opt RBRACKET { $$ = make_arraylit($2); }
     | TRUE { $$ = make_lit_bool(1); }
     | FALSE { $$ = make_lit_bool(0); }
     | NUMBER { $$ = make_lit_num($1.num, $1.is_float); }
     | STRING_LITERAL { $$ = make_lit_string($1); free($1); }
+    | IDENTIFIER LBRACKET expression RBRACKET { $$ = make_index(make_var($1), $3); }
     | IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_call($1, $3); }
     | IDENTIFIER DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_dotcall($1, $3, $5); }
     | IDENTIFIER DOT IDENTIFIER { $$ = make_field($1, $3); }

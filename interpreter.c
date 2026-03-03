@@ -62,6 +62,17 @@ typedef struct Value {
     char struct_type[64];
 } Value;
 
+typedef struct ArrayInstance {
+    int capacity;
+    int length;
+    Value *items;
+} ArrayInstance;
+
+static Value default_array_value(void);
+static void array_reserve(ArrayInstance *arr, int new_cap);
+static void array_push(ArrayInstance *arr, Value v);
+static Value array_pop(ArrayInstance *arr);
+
 static FILE *g_out = NULL;
 static int g_loop_depth = 0;
 static int g_call_depth = 0;
@@ -165,6 +176,78 @@ static Value value_struct(const char *type_name, void *ptr) {
     strncpy(v.struct_type, type_name ? type_name : "", sizeof(v.struct_type) - 1);
     v.struct_type[sizeof(v.struct_type) - 1] = '\0';
     return v;
+}
+
+static Value value_array(void *ptr) {
+    Value v;
+    strcpy(v.type, "array");
+    v.num = 0;
+    v.str[0] = '\0';
+    v.boolean = 0;
+    v.ptr = ptr;
+    v.struct_type[0] = '\0';
+    return v;
+}
+
+static Value default_array_value(void) {
+    return value_num(0, "int");
+}
+
+static void array_reserve(ArrayInstance *arr, int new_cap) {
+    if (!arr) runtime_error("Null array instance");
+    if (new_cap <= arr->capacity) return;
+    if (new_cap < 1) new_cap = 1;
+
+    Value *new_items = (Value*)arena_calloc((size_t)new_cap, sizeof(Value));
+    if (!new_items) exit(1);
+
+    for (int i = 0; i < arr->length; i++) {
+        new_items[i] = arr->items[i];
+    }
+    for (int i = arr->length; i < new_cap; i++) {
+        new_items[i] = default_array_value();
+    }
+
+    arr->items = new_items;
+    arr->capacity = new_cap;
+}
+
+static void array_push(ArrayInstance *arr, Value v) {
+    if (!arr) runtime_error("Null array instance");
+    if (arr->length >= arr->capacity) {
+        int next_cap = arr->capacity > 0 ? (arr->capacity * 2) : 1;
+        array_reserve(arr, next_cap);
+    }
+    arr->items[arr->length++] = v;
+}
+
+static Value array_pop(ArrayInstance *arr) {
+    if (!arr) runtime_error("Null array instance");
+    if (arr->length <= 0) runtime_error("pop() on empty array");
+    Value v = arr->items[arr->length - 1];
+    arr->length--;
+    return v;
+}
+
+static void array_resize(ArrayInstance *arr, int new_len) {
+    if (!arr) runtime_error("Null array instance");
+    if (new_len < 0) runtime_error("resize() requires newSize >= 0");
+
+    if (new_len > arr->capacity) {
+        int next_cap = arr->capacity > 0 ? arr->capacity : 1;
+        while (next_cap < new_len) {
+            if (next_cap > 100000000 / 2) { next_cap = new_len; break; }
+            next_cap *= 2;
+        }
+        array_reserve(arr, next_cap);
+    }
+
+    if (new_len > arr->length) {
+        for (int i = arr->length; i < new_len; i++) {
+            arr->items[i] = default_array_value();
+        }
+    }
+    arr->length = new_len;
 }
 
 /* -------------------------
@@ -552,6 +635,7 @@ static Value symbol_to_value(Symbol *sym) {
     if (strcmp(sym->type, "bool") == 0) return value_bool(sym->bool_value);
     if (strcmp(sym->type, "string") == 0) return value_string(sym->str_value);
     if (strcmp(sym->type, "struct") == 0) return value_struct(sym->struct_type, sym->ptr_value);
+    if (strcmp(sym->type, "array") == 0) return value_array(sym->ptr_value);
     runtime_error("Unknown symbol type");
     return value_num(0, "int");
 }
@@ -565,6 +649,8 @@ static void store_value_note(const char *name, Value v) {
         declare_or_update_current_scope_value(name, "string", 0, v.str, 0);
     else if (strcmp(v.type, "struct") == 0)
         declare_or_update_current_scope_struct(name, v.struct_type, v.ptr);
+    else if (strcmp(v.type, "array") == 0)
+        declare_or_update_current_scope_array(name, v.ptr);
     else
         runtime_error("Unsupported value type in note");
 }
@@ -578,8 +664,17 @@ static void store_value_stage(const char *name, Value v) {
         insert_or_update_value(name, "string", 0, v.str, 0);
     else if (strcmp(v.type, "struct") == 0)
         insert_or_update_struct(name, v.struct_type, v.ptr);
+    else if (strcmp(v.type, "array") == 0)
+        insert_or_update_array(name, v.ptr);
     else
         runtime_error("Unsupported value type in stage");
+}
+
+static long long value_to_index(Value v) {
+    if (!is_numeric_type(v.type)) runtime_error("Array index must be numeric");
+    long long i = (long long)v.num;
+    if ((double)i != v.num) runtime_error("Array index must be an integer");
+    return i;
 }
 
 static Value coerce_to_field_type(Value v, const char *field_type) {
@@ -605,6 +700,23 @@ static Value coerce_to_field_type(Value v, const char *field_type) {
     return value_num(0, "int");
 }
 
+Expr* make_arraylit(ExprList *elems) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_ARRAYLIT;
+    e->array_elems = elems;
+    return e;
+}
+
+Expr* make_index(Expr *target, Expr *index) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_INDEX;
+    e->index_target = target;
+    e->index_expr = index;
+    return e;
+}
+
 static Value eval_bin_numeric(int op, Value a, Value b) {
     if (!is_numeric_type(a.type) || !is_numeric_type(b.type)) runtime_error("Arithmetic requires numeric types");
 
@@ -620,6 +732,16 @@ static Value eval_bin_numeric(int op, Value a, Value b) {
 
     if (result_is_float) return value_num(r, "float");
     return value_num((double)((long long)r), "int");
+}
+
+Stmt* make_index_stage(char *name, Expr *index, Expr *expr) {
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_INDEX_STAGE;
+    s->name = name;
+    s->index = index;
+    s->expr = expr;
+    return s;
 }
 
 static Value eval_expr(Expr *e);
@@ -805,7 +927,87 @@ static Value eval_expr(Expr *e) {
         return value_num(0, "int");
     }
 
+    if (e->kind == EXPR_ARRAYLIT) {
+        int n = exprlist_length(e->array_elems);
+        ArrayInstance *arr = (ArrayInstance*)arena_calloc(1, sizeof(ArrayInstance));
+        if (!arr) exit(1);
+        arr->capacity = n;
+        arr->length = n;
+        arr->items = n > 0 ? (Value*)arena_calloc((size_t)n, sizeof(Value)) : NULL;
+
+        int i = 0;
+        for (ExprList *p = e->array_elems; p; p = p->next) {
+            arr->items[i++] = eval_expr(p->expr);
+        }
+        return value_array(arr);
+    }
+
+    if (e->kind == EXPR_INDEX) {
+        Value tv = eval_expr(e->index_target);
+        if (strcmp(tv.type, "array") != 0) runtime_error("Indexing requires an array");
+        ArrayInstance *arr = (ArrayInstance*)tv.ptr;
+        if (!arr) runtime_error("Null array instance");
+
+        Value iv = eval_expr(e->index_expr);
+        long long idx = value_to_index(iv);
+        if (idx < 0 || idx >= (long long)arr->length) runtime_error("Array index out of bounds");
+        return arr->items[(int)idx];
+    }
+
     if (e->kind == EXPR_CALL) {
+        /* Built-in array helpers (runtime intrinsics) */
+        if (e->callee && strcmp(e->callee, "array") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 1) runtime_error("array(n) expects exactly 1 argument");
+            Value nval = eval_expr(e->args->expr);
+            long long nll = value_to_index(nval);
+            if (nll < 0) runtime_error("array(n) requires n >= 0");
+            if (nll > 1000000) runtime_error("array(n) too large");
+
+            int n = (int)nll;
+            ArrayInstance *arr = (ArrayInstance*)arena_calloc(1, sizeof(ArrayInstance));
+            if (!arr) exit(1);
+            arr->capacity = n;
+            arr->length = n;
+            arr->items = n > 0 ? (Value*)arena_calloc((size_t)n, sizeof(Value)) : NULL;
+            for (int i = 0; i < n; i++) {
+                arr->items[i] = default_array_value();
+            }
+            return value_array(arr);
+        }
+
+        if (e->callee && strcmp(e->callee, "push") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 2) runtime_error("push(arr, value) expects exactly 2 arguments");
+            Value av = eval_expr(e->args->expr);
+            if (strcmp(av.type, "array") != 0) runtime_error("push() first argument must be an array");
+            Value vv = eval_expr(e->args->next->expr);
+            array_push((ArrayInstance*)av.ptr, vv);
+            return value_num((double)((ArrayInstance*)av.ptr)->length, "int");
+        }
+
+        if (e->callee && strcmp(e->callee, "pop") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 1) runtime_error("pop(arr) expects exactly 1 argument");
+            Value av = eval_expr(e->args->expr);
+            if (strcmp(av.type, "array") != 0) runtime_error("pop() argument must be an array");
+            return array_pop((ArrayInstance*)av.ptr);
+        }
+
+        if (e->callee && strcmp(e->callee, "resize") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 2) runtime_error("resize(arr, newSize) expects exactly 2 arguments");
+            Value av = eval_expr(e->args->expr);
+            if (strcmp(av.type, "array") != 0) runtime_error("resize() first argument must be an array");
+            Value nv = eval_expr(e->args->next->expr);
+            long long nll = value_to_index(nv);
+            if (nll < 0) runtime_error("resize() requires newSize >= 0");
+            if (nll > 1000000) runtime_error("resize() too large");
+
+            array_resize((ArrayInstance*)av.ptr, (int)nll);
+            return value_num((double)((ArrayInstance*)av.ptr)->length, "int");
+        }
+
         FlowHandle *flow = find_flow_handle(e->callee);
         if (!flow) {
             /* Constructor-like call: TypeName() creates an ensemble instance. */
@@ -965,23 +1167,21 @@ static Value eval_expr(Expr *e) {
     return value_num(0, "int");
 }
 
-static void print_value(Value v) {
-    FILE *out = g_out ? g_out : stdout;
-
+static void fprint_value_inline(FILE *out, Value v) {
     if (strcmp(v.type, "int") == 0) {
-        fprintf(out, "%lld\n", (long long)v.num);
+        fprintf(out, "%lld", (long long)v.num);
         return;
     }
     if (strcmp(v.type, "float") == 0) {
-        fprintf(out, "%g\n", v.num);
+        fprintf(out, "%g", v.num);
         return;
     }
     if (strcmp(v.type, "bool") == 0) {
-        fprintf(out, "%s\n", v.boolean ? "true" : "false");
+        fprintf(out, "%s", v.boolean ? "true" : "false");
         return;
     }
     if (strcmp(v.type, "string") == 0) {
-        fprintf(out, "%s\n", v.str);
+        fprintf(out, "%s", v.str);
         return;
     }
 
@@ -995,19 +1195,31 @@ static void print_value(Value v) {
             first = 0;
 
             fprintf(out, "%s=", f->name);
-            Value fv = f->value;
-            if (strcmp(fv.type, "int") == 0) fprintf(out, "%lld", (long long)fv.num);
-            else if (strcmp(fv.type, "float") == 0) fprintf(out, "%g", fv.num);
-            else if (strcmp(fv.type, "bool") == 0) fprintf(out, "%s", fv.boolean ? "true" : "false");
-            else if (strcmp(fv.type, "string") == 0) fprintf(out, "%s", fv.str);
-            else fprintf(out, "<%s>", fv.type);
+            fprint_value_inline(out, f->value);
         }
 
-        fprintf(out, "}\n");
+        fprintf(out, "}");
         return;
     }
 
-    runtime_error("Unknown value type for emit");
+    if (strcmp(v.type, "array") == 0) {
+        ArrayInstance *arr = (ArrayInstance*)v.ptr;
+        fprintf(out, "[");
+        for (int i = 0; i < (arr ? arr->length : 0); i++) {
+            if (i) fprintf(out, ",");
+            fprint_value_inline(out, arr->items[i]);
+        }
+        fprintf(out, "]");
+        return;
+    }
+
+    fprintf(out, "<%s>", v.type);
+}
+
+static void print_value(Value v) {
+    FILE *out = g_out ? g_out : stdout;
+    fprint_value_inline(out, v);
+    fprintf(out, "\n");
 }
 
 static ExecSignal exec_stmt(Stmt *s);
@@ -1055,6 +1267,20 @@ static ExecSignal exec_stmt(Stmt *s) {
             StructFieldValue *fv = find_struct_field(inst, s->field);
             if (!fv) runtime_error("Unknown field on ensemble instance");
             fv->value = coerced;
+            return SIG_OK;
+        }
+        case STMT_INDEX_STAGE: {
+            Symbol *sym = get_symbol_or_error(s->name);
+            if (strcmp(sym->type, "array") != 0) runtime_error("Index assignment requires array variable");
+            ArrayInstance *arr = (ArrayInstance*)sym->ptr_value;
+            if (!arr) runtime_error("Null array instance");
+
+            Value iv = eval_expr(s->index);
+            long long idx = value_to_index(iv);
+            if (idx < 0 || idx >= (long long)arr->length) runtime_error("Array index out of bounds");
+
+            Value rhs = eval_expr(s->expr);
+            arr->items[(int)idx] = rhs;
             return SIG_OK;
         }
         case STMT_EMIT: {
