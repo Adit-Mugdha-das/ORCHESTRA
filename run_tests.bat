@@ -15,6 +15,7 @@ call :run_one test_class_namespace.txt out_test_class_namespace.txt || set FAIL=
 call :run_one test_inheritance.txt out_test_inheritance.txt || set FAIL=1
 call :run_one test_arrays.txt out_test_arrays.txt || set FAIL=1
 call :run_one test_map.txt out_test_map.txt || set FAIL=1
+call :run_one test_set.txt out_test_set.txt || set FAIL=1
 
 if %FAIL%==0 (
   echo.

@@ -1,0 +1,22 @@
+flow main take() {
+  note s = set();
+  emit s;
+
+  add(s, "a");
+  add(s, "b");
+  add(s, "a");
+  emit s;
+
+  emit s["a"];
+  emit s["x"];
+
+  stage s["x"] = true;
+  emit has(s, "x");
+  stage s["a"] = false;
+  emit has(s, "a");
+
+  emit keys(s);
+
+  emit del(s, "b");
+  emit s;
+}

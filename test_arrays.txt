@@ -1,0 +1,28 @@
+flow main take() {
+  note a = [1,2,3];
+  emit a[0];
+  emit a[2];
+  stage a[1] = 9;
+  emit a[1];
+  emit a;
+
+  note z = array(5);
+  emit z;
+  stage z[0] = 10;
+  stage z[4] = 99;
+  emit z;
+
+  note e = array(0);
+  push(e, 7);
+  push(e, "ok");
+  emit e;
+  emit pop(e);
+  emit e;
+
+  resize(e, 4);
+  emit e;
+  stage e[2] = 123;
+  emit e;
+  resize(e, 1);
+  emit e;
+}

@@ -1,0 +1,28 @@
+ensemble Person {
+  int age;
+  string name;
+}
+
+symphony Box {
+  int w;
+  int h;
+
+  flow init take(w,h) {
+    stage this.w = w;
+    stage this.h = h;
+  }
+
+  flow area take() {
+    return this.w * this.h;
+  }
+}
+
+flow main take() {
+  note p = Person(20, "Ali");
+  emit p.age;
+  stage p.age = 42;
+  emit p;
+
+  note b = Box(6,7);
+  emit b.area();
+}

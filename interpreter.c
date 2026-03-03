@@ -78,6 +78,16 @@ typedef struct MapInstance {
     int size;
 } MapInstance;
 
+typedef struct SetEntry {
+    char *key;
+    struct SetEntry *next;
+} SetEntry;
+
+typedef struct SetInstance {
+    SetEntry *head;
+    int size;
+} SetInstance;
+
 static Value default_array_value(void);
 static void array_reserve(ArrayInstance *arr, int new_cap);
 static void array_push(ArrayInstance *arr, Value v);
@@ -89,6 +99,11 @@ static int map_has(MapInstance *m, const char *key);
 static Value map_get(MapInstance *m, const char *key);
 static void map_put(MapInstance *m, const char *key, Value v);
 static int map_del(MapInstance *m, const char *key);
+
+static SetInstance* set_new(void);
+static int set_has(SetInstance *s, const char *key);
+static void set_add(SetInstance *s, const char *key);
+static int set_del(SetInstance *s, const char *key);
 
 static FILE *g_out = NULL;
 static int g_loop_depth = 0;
@@ -198,6 +213,17 @@ static Value value_struct(const char *type_name, void *ptr) {
 static Value value_map(void *ptr) {
     Value v;
     strcpy(v.type, "map");
+    v.num = 0;
+    v.str[0] = '\0';
+    v.boolean = 0;
+    v.ptr = ptr;
+    v.struct_type[0] = '\0';
+    return v;
+}
+
+static Value value_set(void *ptr) {
+    Value v;
+    strcpy(v.type, "set");
     v.num = 0;
     v.str[0] = '\0';
     v.boolean = 0;
@@ -665,6 +691,7 @@ static Value symbol_to_value(Symbol *sym) {
     if (strcmp(sym->type, "struct") == 0) return value_struct(sym->struct_type, sym->ptr_value);
     if (strcmp(sym->type, "array") == 0) return value_array(sym->ptr_value);
     if (strcmp(sym->type, "map") == 0) return value_map(sym->ptr_value);
+    if (strcmp(sym->type, "set") == 0) return value_set(sym->ptr_value);
     runtime_error("Unknown symbol type");
     return value_num(0, "int");
 }
@@ -682,6 +709,8 @@ static void store_value_note(const char *name, Value v) {
         declare_or_update_current_scope_array(name, v.ptr);
     else if (strcmp(v.type, "map") == 0)
         declare_or_update_current_scope_map(name, v.ptr);
+    else if (strcmp(v.type, "set") == 0)
+        declare_or_update_current_scope_set(name, v.ptr);
     else
         runtime_error("Unsupported value type in note");
 }
@@ -699,6 +728,8 @@ static void store_value_stage(const char *name, Value v) {
         insert_or_update_array(name, v.ptr);
     else if (strcmp(v.type, "map") == 0)
         insert_or_update_map(name, v.ptr);
+    else if (strcmp(v.type, "set") == 0)
+        insert_or_update_set(name, v.ptr);
     else
         runtime_error("Unsupported value type in stage");
 }
@@ -773,6 +804,57 @@ static int map_del(MapInstance *m, const char *key) {
             if (prev) prev->next = e->next;
             else m->head = e->next;
             m->size--;
+            return 1;
+        }
+        prev = e;
+    }
+    return 0;
+}
+
+static SetInstance* set_new(void) {
+    SetInstance *s = (SetInstance*)arena_calloc(1, sizeof(SetInstance));
+    if (!s) exit(1);
+    s->head = NULL;
+    s->size = 0;
+    return s;
+}
+
+static SetEntry* set_find_entry(SetInstance *s, const char *key) {
+    for (SetEntry *e = s ? s->head : NULL; e; e = e->next) {
+        if (strcmp(e->key, key) == 0) return e;
+    }
+    return NULL;
+}
+
+static int set_has(SetInstance *s, const char *key) {
+    if (!s) runtime_error("Null set instance");
+    if (!key) runtime_error("Null set key");
+    return set_find_entry(s, key) ? 1 : 0;
+}
+
+static void set_add(SetInstance *s, const char *key) {
+    if (!s) runtime_error("Null set instance");
+    if (!key) runtime_error("Null set key");
+    if (set_find_entry(s, key)) return;
+
+    SetEntry *ne = (SetEntry*)arena_calloc(1, sizeof(SetEntry));
+    if (!ne) exit(1);
+    ne->key = arena_strdup(key);
+    ne->next = s->head;
+    s->head = ne;
+    s->size++;
+}
+
+static int set_del(SetInstance *s, const char *key) {
+    if (!s) runtime_error("Null set instance");
+    if (!key) runtime_error("Null set key");
+
+    SetEntry *prev = NULL;
+    for (SetEntry *e = s->head; e; e = e->next) {
+        if (strcmp(e->key, key) == 0) {
+            if (prev) prev->next = e->next;
+            else s->head = e->next;
+            s->size--;
             return 1;
         }
         prev = e;
@@ -1063,7 +1145,14 @@ static Value eval_expr(Expr *e) {
             return map_get(m, key);
         }
 
-        runtime_error("Indexing requires an array or map");
+        if (strcmp(tv.type, "set") == 0) {
+            SetInstance *s = (SetInstance*)tv.ptr;
+            if (!s) runtime_error("Null set instance");
+            const char *key = value_to_key_string(&iv);
+            return value_bool(set_has(s, key));
+        }
+
+        runtime_error("Indexing requires an array, map, or set");
     }
 
     if (e->kind == EXPR_CALL) {
@@ -1127,14 +1216,33 @@ static Value eval_expr(Expr *e) {
             return value_map(map_new());
         }
 
+        /* Built-in set helpers (string elements) */
+        if (e->callee && strcmp(e->callee, "set") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 0) runtime_error("set() expects no arguments");
+            return value_set(set_new());
+        }
+
+        if (e->callee && strcmp(e->callee, "add") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 2) runtime_error("add(s, key) expects exactly 2 arguments");
+            Value sv = eval_expr(e->args->expr);
+            if (strcmp(sv.type, "set") != 0) runtime_error("add() first argument must be a set");
+            Value kv = eval_expr(e->args->next->expr);
+            const char *key = value_to_key_string(&kv);
+            set_add((SetInstance*)sv.ptr, key);
+            return value_num((double)((SetInstance*)sv.ptr)->size, "int");
+        }
+
         if (e->callee && strcmp(e->callee, "has") == 0) {
             int argc = exprlist_length(e->args);
             if (argc != 2) runtime_error("has(m, key) expects exactly 2 arguments");
-            Value mv = eval_expr(e->args->expr);
-            if (strcmp(mv.type, "map") != 0) runtime_error("has() first argument must be a map");
+            Value cv = eval_expr(e->args->expr);
             Value kv = eval_expr(e->args->next->expr);
             const char *key = value_to_key_string(&kv);
-            return value_bool(map_has((MapInstance*)mv.ptr, key));
+            if (strcmp(cv.type, "map") == 0) return value_bool(map_has((MapInstance*)cv.ptr, key));
+            if (strcmp(cv.type, "set") == 0) return value_bool(set_has((SetInstance*)cv.ptr, key));
+            runtime_error("has() first argument must be a map or set");
         }
 
         if (e->callee && strcmp(e->callee, "get") == 0) {
@@ -1162,32 +1270,56 @@ static Value eval_expr(Expr *e) {
         if (e->callee && strcmp(e->callee, "del") == 0) {
             int argc = exprlist_length(e->args);
             if (argc != 2) runtime_error("del(m, key) expects exactly 2 arguments");
-            Value mv = eval_expr(e->args->expr);
-            if (strcmp(mv.type, "map") != 0) runtime_error("del() first argument must be a map");
+            Value cv = eval_expr(e->args->expr);
             Value kv = eval_expr(e->args->next->expr);
             const char *key = value_to_key_string(&kv);
-            return value_bool(map_del((MapInstance*)mv.ptr, key));
+            if (strcmp(cv.type, "map") == 0) return value_bool(map_del((MapInstance*)cv.ptr, key));
+            if (strcmp(cv.type, "set") == 0) return value_bool(set_del((SetInstance*)cv.ptr, key));
+            runtime_error("del() first argument must be a map or set");
         }
 
         if (e->callee && strcmp(e->callee, "keys") == 0) {
             int argc = exprlist_length(e->args);
             if (argc != 1) runtime_error("keys(m) expects exactly 1 argument");
             Value mv = eval_expr(e->args->expr);
-            if (strcmp(mv.type, "map") != 0) runtime_error("keys() argument must be a map");
-            MapInstance *m = (MapInstance*)mv.ptr;
-            if (!m) runtime_error("Null map instance");
+            int n = 0;
+            if (strcmp(mv.type, "map") == 0) {
+                MapInstance *m = (MapInstance*)mv.ptr;
+                if (!m) runtime_error("Null map instance");
+                n = m->size;
 
-            ArrayInstance *arr = (ArrayInstance*)arena_calloc(1, sizeof(ArrayInstance));
-            if (!arr) exit(1);
-            arr->capacity = m->size;
-            arr->length = m->size;
-            arr->items = arr->length > 0 ? (Value*)arena_calloc((size_t)arr->length, sizeof(Value)) : NULL;
+                ArrayInstance *arr = (ArrayInstance*)arena_calloc(1, sizeof(ArrayInstance));
+                if (!arr) exit(1);
+                arr->capacity = n;
+                arr->length = n;
+                arr->items = arr->length > 0 ? (Value*)arena_calloc((size_t)arr->length, sizeof(Value)) : NULL;
 
-            int i = 0;
-            for (MapEntry *e2 = m->head; e2; e2 = e2->next) {
-                arr->items[i++] = value_string(e2->key);
+                int i = 0;
+                for (MapEntry *e2 = m->head; e2; e2 = e2->next) {
+                    arr->items[i++] = value_string(e2->key);
+                }
+                return value_array(arr);
             }
-            return value_array(arr);
+
+            if (strcmp(mv.type, "set") == 0) {
+                SetInstance *s = (SetInstance*)mv.ptr;
+                if (!s) runtime_error("Null set instance");
+                n = s->size;
+
+                ArrayInstance *arr = (ArrayInstance*)arena_calloc(1, sizeof(ArrayInstance));
+                if (!arr) exit(1);
+                arr->capacity = n;
+                arr->length = n;
+                arr->items = arr->length > 0 ? (Value*)arena_calloc((size_t)arr->length, sizeof(Value)) : NULL;
+
+                int i = 0;
+                for (SetEntry *e2 = s->head; e2; e2 = e2->next) {
+                    arr->items[i++] = value_string(e2->key);
+                }
+                return value_array(arr);
+            }
+
+            runtime_error("keys() argument must be a map or set");
         }
 
         FlowHandle *flow = find_flow_handle(e->callee);
@@ -1409,6 +1541,19 @@ static void fprint_value_inline(FILE *out, Value v) {
         return;
     }
 
+    if (strcmp(v.type, "set") == 0) {
+        SetInstance *s = (SetInstance*)v.ptr;
+        fprintf(out, "set{");
+        int first = 1;
+        for (SetEntry *e = s ? s->head : NULL; e; e = e->next) {
+            if (!first) fprintf(out, ",");
+            first = 0;
+            fprintf(out, "%s", e->key);
+        }
+        fprintf(out, "}");
+        return;
+    }
+
     fprintf(out, "<%s>", v.type);
 }
 
@@ -1487,7 +1632,17 @@ static ExecSignal exec_stmt(Stmt *s) {
                 return SIG_OK;
             }
 
-            runtime_error("Index assignment requires array or map variable");
+            if (strcmp(sym->type, "set") == 0) {
+                SetInstance *s = (SetInstance*)sym->ptr_value;
+                if (!s) runtime_error("Null set instance");
+                const char *key = value_to_key_string(&iv);
+                if (strcmp(rhs.type, "bool") != 0) runtime_error("Set assignment requires bool (true adds, false removes)");
+                if (rhs.boolean) set_add(s, key);
+                else (void)set_del(s, key);
+                return SIG_OK;
+            }
+
+            runtime_error("Index assignment requires array, map, or set variable");
             return SIG_OK;
         }
         case STMT_EMIT: {

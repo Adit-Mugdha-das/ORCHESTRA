@@ -42,6 +42,10 @@ void declare_or_update_current_scope_array(const char *name, void *ptr_value);
 void insert_or_update_map(const char *name, void *ptr_value);
 void declare_or_update_current_scope_map(const char *name, void *ptr_value);
 
+/* For sets (string element collection) */
+void insert_or_update_set(const char *name, void *ptr_value);
+void declare_or_update_current_scope_set(const char *name, void *ptr_value);
+
 const char* get_type_or_error(const char *name);
 
 #ifdef __cplusplus
