@@ -1,7 +1,61 @@
-flow infinite take(n) {
-  return infinite(n);
+ensemble Person {
+  int age;
+  string name;
+}
+
+symphony Counter {
+  int v;
+
+  flow init take(v) {
+    stage this.v = v;
+  }
+
+  flow inc take() {
+    stage this.v = this.v + 1;
+    return this.v;
+  }
+}
+
+symphony FancyCounter extends Counter {
+  int step;
+
+  flow init take(v, step) {
+    super(v);
+    stage this.step = step;
+  }
+
+  flow inc take() {
+    stage this.v = this.v + this.step;
+    return super.inc();
+  }
 }
 
 flow main take() {
-  emit infinite(1);
+  note p = Person(20, "Ali");
+  emit p;
+  stage p.age = 21;
+  emit p.age;
+
+  note c = FancyCounter(10, 3);
+  emit c.inc();
+  emit c.inc();
+  emit c.v;
+
+  note a = [1,2,3];
+  stage a[1] = 9;
+  emit a;
+
+  note m = map();
+  stage m["name"] = p.name;
+  stage m["age"] = p.age;
+  emit m;
+  emit has(m, "name");
+  emit keys(m);
+
+  note s = set();
+  add(s, "x");
+  stage s["y"] = true;
+  stage s["x"] = false;
+  emit s;
+  emit keys(s);
 }

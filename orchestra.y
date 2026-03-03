@@ -264,6 +264,8 @@ statement:
     | CONTINUE SEMICOLON
       { $$ = make_assign(STMT_CONTINUE, NULL, NULL); }
 
+    | block
+
     | branch_statement
     | repeat_statement
     ;
