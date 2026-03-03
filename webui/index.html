@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ORCHESTRA Playground</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ace.js" integrity="sha512-kUqYyw0d2M3o+i5oXbX6S2T1fUGlq3SLk8N9lu1K3mVdN3yM2gqIuZkeO1Wc7vA0c8bH5Nq1UeI3qz9o8oJc0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="title">ORCHESTRA Playground</div>
+        <div class="subtitle">Run AST vs VM locally</div>
+      </div>
+
+      <div class="controls">
+        <label class="field">
+          <span>Backend</span>
+          <select id="backend">
+            <option value="ast">AST (reference)</option>
+            <option value="vm">VM (bytecode)</option>
+          </select>
+        </label>
+
+        <button id="run" class="btn primary">Run</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="panel editor">
+        <div class="panelHeader">
+          <div class="panelTitle">Code</div>
+          <div class="panelMeta" id="status">Ready</div>
+        </div>
+        <div id="editor" class="editorSurface"></div>
+        <textarea id="fallback" class="fallback" spellcheck="false"></textarea>
+      </section>
+
+      <section class="panel output">
+        <div class="panelHeader">
+          <div class="panelTitle">Output</div>
+          <div class="panelMeta">
+            <span class="pill" id="rc">rc: —</span>
+            <span class="pill" id="time">— ms</span>
+          </div>
+        </div>
+
+        <div class="split">
+          <div class="box">
+            <div class="boxTitle">Program Output</div>
+            <pre id="out" class="pre"></pre>
+          </div>
+          <div class="box">
+            <div class="boxTitle">Errors / Diagnostics</div>
+            <pre id="err" class="pre error"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>Tip: Start the UI via <code>run_webui.bat</code>. Output comes from the same <code>orchestra.exe</code> you use in the terminal.</div>
+    </footer>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
