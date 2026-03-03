@@ -38,6 +38,8 @@ static std::vector<LoopContext> g_loops;
 
 static int ensure_compiled_flow(const char* name);
 
+static void precompile_all_flows();
+
 static void compile_lit(BytecodeProgram& prog, BytecodeFunc& fn, const Expr* e) {
     if (std::strcmp(e->lit_type, "int") == 0) {
         fn.emit(OpCode::PUSH_INT, (int)e->lit_num);
@@ -126,14 +128,90 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
                 std::exit(1);
             }
 
+            /* If it's a known flow, compile as normal call; otherwise, allow constructor-like TypeName(args). */
+            FlowHandle* h = flow_registry_find(e->callee);
+            if (h) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) {
+                    compile_expr(prog, fn, a->expr);
+                    argc++;
+                }
+
+                const int fidx = ensure_compiled_flow(e->callee);
+                fn.emit(OpCode::CALL, fidx, argc);
+                return;
+            }
+
+            if (is_ensemble_type(e->callee)) {
+                const int type_id = prog.add_str(e->callee);
+                fn.emit(OpCode::PUSH_STR, type_id);
+
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) {
+                    compile_expr(prog, fn, a->expr);
+                    argc++;
+                }
+                fn.emit(OpCode::CTOR, argc);
+                return;
+            }
+
+            vm_compile_error(g_compile_out, "Call to undefined flow");
+            std::exit(1);
+            return;
+        }
+        case EXPR_FIELD: {
+            if (!e->base || !e->field) {
+                vm_compile_error(g_compile_out, "Null field access");
+                std::exit(1);
+            }
+            const int base_id = prog.add_str(e->base);
+            const int field_id = prog.add_str(e->field);
+            fn.emit(OpCode::PUSH_STR, base_id);
+            fn.emit(OpCode::PUSH_STR, field_id);
+            fn.emit(OpCode::FIELD_GET);
+            return;
+        }
+        case EXPR_DOTCALL: {
+            if (!e->dot_base || !e->dot_member) {
+                vm_compile_error(g_compile_out, "Null dot call");
+                std::exit(1);
+            }
+            const int base_id = prog.add_str(e->dot_base);
+            const int mem_id = prog.add_str(e->dot_member);
+            fn.emit(OpCode::PUSH_STR, base_id);
+            fn.emit(OpCode::PUSH_STR, mem_id);
+
             int argc = 0;
-            for (ExprList* a = e->args; a; a = a->next) {
+            for (ExprList* a = e->dot_args; a; a = a->next) {
                 compile_expr(prog, fn, a->expr);
                 argc++;
             }
+            fn.emit(OpCode::DOTCALL, argc);
+            return;
+        }
+        case EXPR_SUPERCALL: {
+            if (!e->super_member) {
+                vm_compile_error(g_compile_out, "Null super member");
+                std::exit(1);
+            }
+            const int mem_id = prog.add_str(e->super_member);
+            fn.emit(OpCode::PUSH_STR, mem_id);
 
-            const int fidx = ensure_compiled_flow(e->callee);
-            fn.emit(OpCode::CALL, fidx, argc);
+            int argc = 0;
+            for (ExprList* a = e->super_args; a; a = a->next) {
+                compile_expr(prog, fn, a->expr);
+                argc++;
+            }
+            fn.emit(OpCode::SUPERCALL, argc);
+            return;
+        }
+        case EXPR_SUPERCTOR: {
+            int argc = 0;
+            for (ExprList* a = e->super_ctor_args; a; a = a->next) {
+                compile_expr(prog, fn, a->expr);
+                argc++;
+            }
+            fn.emit(OpCode::SUPERCTOR, argc);
             return;
         }
         case EXPR_UNARY:
@@ -228,6 +306,19 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             fn.emit(OpCode::STAGE_NAME, id);
             return;
         }
+        case STMT_FIELD_STAGE: {
+            if (!s->base || !s->field) {
+                vm_compile_error(g_compile_out, "Null field stage");
+                std::exit(1);
+            }
+            const int base_id = prog.add_str(s->base);
+            const int field_id = prog.add_str(s->field);
+            fn.emit(OpCode::PUSH_STR, base_id);
+            fn.emit(OpCode::PUSH_STR, field_id);
+            compile_expr(prog, fn, s->expr);
+            fn.emit(OpCode::FIELD_SET);
+            return;
+        }
         case STMT_EXPR:
             compile_expr(prog, fn, s->expr);
             fn.emit(OpCode::POP);
@@ -318,6 +409,15 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
     }
 }
 
+static void precompile_cb(const char *name, void * /*user*/) {
+    if (!name) return;
+    (void)ensure_compiled_flow(name);
+}
+
+static void precompile_all_flows() {
+    flow_registry_for_each(precompile_cb, nullptr);
+}
+
 static int ensure_compiled_flow(const char* name) {
     if (!name || !g_prog) {
         vm_compile_error(g_compile_out, "Internal: compiler not initialized");
@@ -331,6 +431,7 @@ static int ensure_compiled_flow(const char* name) {
     const int idx = (int)g_prog->functions.size();
     g_prog->functions.emplace_back();
     g_func_index[std::string(name)] = idx;
+    g_prog->func_name_to_index[std::string(name)] = idx;
 
     if (g_func_compiling[std::string(name)]) {
         return idx;
@@ -388,6 +489,9 @@ extern "C" int execute_program_vm(Stmt* root, FILE* out) {
 
     prog.functions.emplace_back();
     BytecodeFunc& entry = prog.functions.back();
+
+    /* For Milestone 8 dynamic method dispatch (dotcall/super), compile all flows up-front. */
+    precompile_all_flows();
 
     compile_stmt(prog, entry, root);
     entry.emit(OpCode::PUSH_INT, 0);

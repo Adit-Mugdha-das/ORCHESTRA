@@ -13,6 +13,9 @@ call :compare_one test_vm_control_flow.txt out_vm_cf_ast.txt out_vm_cf_vm.txt ||
 call :compare_one test_vm_calls.txt out_vm_calls_ast.txt out_vm_calls_vm.txt || set FAIL=1
 call :compare_one test_vm_recursion.txt out_vm_rec_ast.txt out_vm_rec_vm.txt || set FAIL=1
 
+call :compare_one test_class_namespace.txt out_vm_oop_ns_ast.txt out_vm_oop_ns_vm.txt || set FAIL=1
+call :compare_one test_inheritance.txt out_vm_oop_inh_ast.txt out_vm_oop_inh_vm.txt || set FAIL=1
+
 if %FAIL%==0 (
   echo.
   echo VM comparison tests passed.

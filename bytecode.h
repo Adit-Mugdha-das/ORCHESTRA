@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <deque>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,14 @@ enum class OpCode {
 
     /* Calls (Milestone 7) */
     CALL, /* a = func index, b = argc */
+
+    /* OOP / ensembles (Milestone 8) */
+    CTOR,      /* a = argc; stack: type_str, args... -> pushes struct */
+    FIELD_GET, /* stack: base_str, field_str -> pushes value */
+    FIELD_SET, /* stack: base_str, field_str, value -> (sets field) */
+    DOTCALL,   /* a = argc; stack: base_str, member_str, args... -> pushes return */
+    SUPERCALL, /* a = argc; stack: member_str, args... -> pushes return */
+    SUPERCTOR, /* a = argc; stack: args... -> pushes return */
 
     /* Arithmetic */
     ADD,
@@ -77,6 +86,9 @@ struct BytecodeProgram {
     /* Constant pools (Milestone 2) */
     std::vector<double> const_num;
     std::vector<std::string> const_str;
+
+    /* Runtime resolution support for Milestone 8 (dotcall/super). */
+    std::unordered_map<std::string, int> func_name_to_index;
 
     std::deque<BytecodeFunc> functions;
 

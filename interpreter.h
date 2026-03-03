@@ -167,6 +167,14 @@ FieldList* fieldlist_append(FieldList *list, char *type /* takes ownership */, c
 void register_ensemble(char *name /* takes ownership */, char *parent /* can be NULL, takes ownership */, FieldList *fields /* takes ownership */);
 int is_ensemble_type(const char *name);
 
+/* Metadata accessors (used by VM backend for Milestone 8). */
+const char* ensemble_parent_or_null(const char *type_name);
+FieldList* ensemble_fields_or_null(const char *type_name);
+
+/* VM backend helpers: inspect registered ensemble metadata. Pointers are arena-owned. */
+const char* ensemble_parent_or_null(const char *type_name);
+FieldList* ensemble_fields_or_null(const char *type_name);
+
 /* Execute and free */
 void execute_program(Stmt *root, FILE *out);
 void free_stmt(Stmt *s);

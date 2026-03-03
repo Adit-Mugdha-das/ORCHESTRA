@@ -395,6 +395,16 @@ int is_ensemble_type(const char *name) {
     return find_ensemble_def(name) ? 1 : 0;
 }
 
+const char* ensemble_parent_or_null(const char *type_name) {
+    EnsembleDef *def = find_ensemble_def(type_name);
+    return def ? def->parent : NULL;
+}
+
+FieldList* ensemble_fields_or_null(const char *type_name) {
+    EnsembleDef *def = find_ensemble_def(type_name);
+    return def ? def->fields : NULL;
+}
+
 static StructFieldValue* find_struct_field(StructInstance *inst, const char *field) {
     for (StructFieldValue *f = inst ? inst->fields : NULL; f; f = f->next) {
         if (strcmp(f->name, field) == 0) return f;

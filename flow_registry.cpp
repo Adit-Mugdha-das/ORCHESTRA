@@ -74,6 +74,13 @@ Stmt* flow_registry_body(FlowHandle *h) {
     return h->flow->body;
 }
 
+void flow_registry_for_each(flow_registry_iter_cb cb, void *user) {
+    if (!cb) return;
+    for (auto &kv : g_flows) {
+        cb(kv.second.name.c_str(), user);
+    }
+}
+
 void flow_registry_free_all(void) {
     /* params/body are arena-owned; releasing the registry just drops references */
     g_flows.clear();
