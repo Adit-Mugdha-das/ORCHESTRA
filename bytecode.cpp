@@ -83,7 +83,7 @@ static void print_value(FILE* out, const VMValue& v) {
     }
 }
 
-static bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFunc& fn) {
+static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const BytecodeFunc& fn) {
     static const int STACK_MAX = 1024;
     VMValue stack[STACK_MAX];
     int sp = 0;
@@ -152,6 +152,16 @@ static bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFun
                 break;
             }
 
+            case OpCode::NOT: {
+                VMValue a = pop();
+                if (a.tag != VTag::BOOL) {
+                    vm_fail(out, "NOT expects bool");
+                    return false;
+                }
+                if (!push(v_bool(!a.boolean))) return false;
+                break;
+            }
+
             case OpCode::ADD:
             case OpCode::SUB:
             case OpCode::MUL:
@@ -178,14 +188,6 @@ static bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFun
                 if (!any_float) {
                     if (!push(v_int((int)r))) return false;
                 } else {
-                    /* Keep ints as int when division is exact and both were ints. */
-                    if (ins.op == OpCode::DIV && a.tag == VTag::INT && b.tag == VTag::INT) {
-                        double ir = std::round(r);
-                        if (std::fabs(r - ir) < 1e-12) {
-                            if (!push(v_int((int)ir))) return false;
-                            break;
-                        }
-                    }
                     if (!push(v_float(r))) return false;
                 }
                 break;
@@ -233,13 +235,9 @@ static bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFun
                         default: break;
                     }
                 } else {
-                    /* Different types: only allow EQ/NE (false/true). */
-                    if (ins.op == OpCode::EQ) res = false;
-                    else if (ins.op == OpCode::NE) res = true;
-                    else {
-                        vm_fail(out, "Ordering compares require same-type numeric");
-                        return false;
-                    }
+                    /* Match interpreter: ==/!= operands must be comparable (same-kind). */
+                    vm_fail(out, "==/!= operands must be comparable");
+                    return false;
                 }
 
                 if (!push(v_bool(res))) return false;
@@ -290,6 +288,10 @@ static bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFun
 
 } // namespace
 
+bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFunc& fn) {
+    return vm_execute_impl(out, prog, fn);
+}
+
 static FILE* as_file(void* f) {
     return reinterpret_cast<FILE*>(f);
 }
@@ -307,6 +309,7 @@ const char* opcode_name(OpCode op) {
         case OpCode::MUL: return "MUL";
         case OpCode::DIV: return "DIV";
         case OpCode::NEG: return "NEG";
+        case OpCode::NOT: return "NOT";
         case OpCode::EQ: return "EQ";
         case OpCode::NE: return "NE";
         case OpCode::LT: return "LT";

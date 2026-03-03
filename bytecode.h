@@ -1,6 +1,7 @@
 #ifndef BYTECODE_H
 #define BYTECODE_H
 
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,7 @@ enum class OpCode {
     MUL,
     DIV,
     NEG,
+    NOT,
 
     /* Comparison */
     EQ,
@@ -76,5 +78,8 @@ struct BytecodeProgram {
 
 const char* opcode_name(OpCode op);
 void dump_bytecode_func(const BytecodeFunc& fn, void* c_file /* FILE* */);
+
+/* Execute a single bytecode function (Milestone 2+). */
+bool vm_execute(FILE* out, const BytecodeProgram& prog, const BytecodeFunc& fn);
 
 #endif

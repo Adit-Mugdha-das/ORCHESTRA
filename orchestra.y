@@ -396,24 +396,16 @@ int main(int argc, char *argv[]) {
     yyin = input;
     yyout = output;
 
-    if (strcmp(backend, "vm") == 0) {
-      /* Milestone 1: verify IR data structures + dump without full compiler/VM. */
-      extern void bytecode_unit_smoke(void *c_file /* FILE* */);
-      bytecode_unit_smoke(output);
-
-      free_all_flows();
-      arena_free_all();
-
-      fclose(input);
-      fclose(output);
-      return 0;
-    }
-
     /* global scope already 0; flow blocks will push/pop */
     yyparse();
 
     if (g_main_block) {
-      execute_program(g_main_block, yyout);
+      if (strcmp(backend, "vm") == 0) {
+        extern int execute_program_vm(struct Stmt *root, FILE *out);
+        execute_program_vm(g_main_block, yyout);
+      } else {
+        execute_program(g_main_block, yyout);
+      }
       g_main_block = NULL;
     }
 
