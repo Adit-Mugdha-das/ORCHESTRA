@@ -16,6 +16,10 @@ call :compare_one test_vm_recursion.txt out_vm_rec_ast.txt out_vm_rec_vm.txt || 
 call :compare_one test_class_namespace.txt out_vm_oop_ns_ast.txt out_vm_oop_ns_vm.txt || set FAIL=1
 call :compare_one test_inheritance.txt out_vm_oop_inh_ast.txt out_vm_oop_inh_vm.txt || set FAIL=1
 
+call :compare_one test_arrays.txt out_vm_arrays_ast.txt out_vm_arrays_vm.txt || set FAIL=1
+call :compare_one test_map.txt out_vm_map_ast.txt out_vm_map_vm.txt || set FAIL=1
+call :compare_one test_set.txt out_vm_set_ast.txt out_vm_set_vm.txt || set FAIL=1
+
 if %FAIL%==0 (
   echo.
   echo VM comparison tests passed.

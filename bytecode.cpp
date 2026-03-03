@@ -17,7 +17,7 @@ static void vm_fail(FILE* out, const char* msg) {
     std::fflush(out);
 }
 
-enum class VTag : uint8_t { INT, FLOAT, BOOL, STR, STRUCT, NIL };
+enum class VTag : uint8_t { INT, FLOAT, BOOL, STR, STRUCT, ARRAY, MAP, SET, NIL };
 
 struct VMValue {
     VTag tag;
@@ -32,6 +32,33 @@ struct VMStruct {
     const char* type_name;
     std::vector<std::string> field_names;
     std::vector<VMValue> field_values;
+};
+
+struct VMArray {
+    int capacity;
+    int length;
+    std::vector<VMValue> items;
+};
+
+struct VMMapEntry {
+    std::string key;
+    VMValue value;
+    VMMapEntry* next;
+};
+
+struct VMMap {
+    VMMapEntry* head;
+    int size;
+};
+
+struct VMSetEntry {
+    std::string key;
+    VMSetEntry* next;
+};
+
+struct VMSet {
+    VMSetEntry* head;
+    int size;
 };
 
 static VMValue v_int(int v) {
@@ -89,6 +116,39 @@ static VMValue v_struct(VMStruct* inst) {
     return x;
 }
 
+static VMValue v_array(VMArray* arr) {
+    VMValue x{};
+    x.tag = VTag::ARRAY;
+    x.num = 0;
+    x.boolean = false;
+    x.str = nullptr;
+    x.ptr = arr;
+    x.struct_type = nullptr;
+    return x;
+}
+
+static VMValue v_map(VMMap* m) {
+    VMValue x{};
+    x.tag = VTag::MAP;
+    x.num = 0;
+    x.boolean = false;
+    x.str = nullptr;
+    x.ptr = m;
+    x.struct_type = nullptr;
+    return x;
+}
+
+static VMValue v_set(VMSet* s) {
+    VMValue x{};
+    x.tag = VTag::SET;
+    x.num = 0;
+    x.boolean = false;
+    x.str = nullptr;
+    x.ptr = s;
+    x.struct_type = nullptr;
+    return x;
+}
+
 static bool is_numeric(const VMValue& v) {
     return v.tag == VTag::INT || v.tag == VTag::FLOAT;
 }
@@ -102,6 +162,73 @@ static VMValue v_nil() {
     x.ptr = nullptr;
     x.struct_type = nullptr;
     return x;
+}
+
+static void print_value_inline(FILE* out, const VMValue& v, int depth);
+
+static void print_value_inline(FILE* out, const VMValue& v, int depth) {
+    if (!out) out = stdout;
+    if (depth > 16) {
+        std::fprintf(out, "<...>");
+        return;
+    }
+
+    switch (v.tag) {
+        case VTag::INT: std::fprintf(out, "%lld", (long long)v.num); return;
+        case VTag::FLOAT: std::fprintf(out, "%g", v.num); return;
+        case VTag::BOOL: std::fprintf(out, "%s", v.boolean ? "true" : "false"); return;
+        case VTag::STR: std::fprintf(out, "%s", v.str ? v.str : ""); return;
+        case VTag::STRUCT: {
+            VMStruct* inst = reinterpret_cast<VMStruct*>(v.ptr);
+            const char* tn = (inst && inst->type_name) ? inst->type_name : "";
+            std::fprintf(out, "%s{", tn);
+            for (size_t i = 0; inst && i < inst->field_names.size(); i++) {
+                if (i) std::fprintf(out, ",");
+                std::fprintf(out, "%s=", inst->field_names[i].c_str());
+                print_value_inline(out, inst->field_values[i], depth + 1);
+            }
+            std::fprintf(out, "}");
+            return;
+        }
+        case VTag::ARRAY: {
+            VMArray* arr = reinterpret_cast<VMArray*>(v.ptr);
+            std::fprintf(out, "[");
+            for (int i = 0; arr && i < arr->length; i++) {
+                if (i) std::fprintf(out, ",");
+                print_value_inline(out, arr->items[(size_t)i], depth + 1);
+            }
+            std::fprintf(out, "]");
+            return;
+        }
+        case VTag::MAP: {
+            VMMap* m = reinterpret_cast<VMMap*>(v.ptr);
+            std::fprintf(out, "{");
+            int first = 1;
+            for (VMMapEntry* e = m ? m->head : nullptr; e; e = e->next) {
+                if (!first) std::fprintf(out, ",");
+                first = 0;
+                std::fprintf(out, "%s=", e->key.c_str());
+                print_value_inline(out, e->value, depth + 1);
+            }
+            std::fprintf(out, "}");
+            return;
+        }
+        case VTag::SET: {
+            VMSet* s = reinterpret_cast<VMSet*>(v.ptr);
+            std::fprintf(out, "set{");
+            int first = 1;
+            for (VMSetEntry* e = s ? s->head : nullptr; e; e = e->next) {
+                if (!first) std::fprintf(out, ",");
+                first = 0;
+                std::fprintf(out, "%s", e->key.c_str());
+            }
+            std::fprintf(out, "}");
+            return;
+        }
+        default:
+            std::fprintf(out, "null");
+            return;
+    }
 }
 
 static VMValue default_for_field_type(const char* t) {
@@ -194,61 +321,250 @@ static int resolve_super_method_index(const BytecodeProgram& prog, const char* c
 
 static void print_value(FILE* out, const VMValue& v) {
     if (!out) out = stdout;
-    switch (v.tag) {
-        case VTag::INT:
-            std::fprintf(out, "%lld\n", (long long)v.num);
-            break;
-        case VTag::FLOAT:
-            std::fprintf(out, "%g\n", v.num);
-            break;
-        case VTag::BOOL:
-            std::fprintf(out, "%s\n", v.boolean ? "true" : "false");
-            break;
-        case VTag::STR:
-            std::fprintf(out, "%s\n", v.str ? v.str : "");
-            break;
-        case VTag::STRUCT: {
-            VMStruct* inst = reinterpret_cast<VMStruct*>(v.ptr);
-            const char* tn = (inst && inst->type_name) ? inst->type_name : "";
-            std::fprintf(out, "%s{", tn);
-            for (size_t i = 0; inst && i < inst->field_names.size(); i++) {
-                if (i) std::fprintf(out, ",");
-                std::fprintf(out, "%s=", inst->field_names[i].c_str());
-                const VMValue fv = inst->field_values[i];
-                switch (fv.tag) {
-                    case VTag::INT: std::fprintf(out, "%lld", (long long)fv.num); break;
-                    case VTag::FLOAT: std::fprintf(out, "%g", fv.num); break;
-                    case VTag::BOOL: std::fprintf(out, "%s", fv.boolean ? "true" : "false"); break;
-                    case VTag::STR: std::fprintf(out, "%s", fv.str ? fv.str : ""); break;
-                    case VTag::STRUCT: {
-                        VMStruct* si = reinterpret_cast<VMStruct*>(fv.ptr);
-                        const char* st = (si && si->type_name) ? si->type_name : "";
-                        std::fprintf(out, "%s{", st);
-                        for (size_t j = 0; si && j < si->field_names.size(); j++) {
-                            if (j) std::fprintf(out, ",");
-                            std::fprintf(out, "%s=", si->field_names[j].c_str());
-                            const VMValue sv = si->field_values[j];
-                            if (sv.tag == VTag::INT) std::fprintf(out, "%lld", (long long)sv.num);
-                            else if (sv.tag == VTag::FLOAT) std::fprintf(out, "%g", sv.num);
-                            else if (sv.tag == VTag::BOOL) std::fprintf(out, "%s", sv.boolean ? "true" : "false");
-                            else if (sv.tag == VTag::STR) std::fprintf(out, "%s", sv.str ? sv.str : "");
-                            else std::fprintf(out, "null");
-                        }
-                        std::fprintf(out, "}");
-                        break;
-                    }
-                    default:
-                        std::fprintf(out, "null");
-                        break;
-                }
-            }
-            std::fprintf(out, "}\n");
-            break;
-        }
-        default:
-            std::fprintf(out, "null\n");
-            break;
+    print_value_inline(out, v, 0);
+    std::fprintf(out, "\n");
+}
+
+static long long value_to_index_vm(FILE* out, const VMValue& v) {
+    if (!is_numeric(v)) {
+        vm_fail(out, "Array index must be numeric");
+        return 0;
     }
+    long long i = (long long)v.num;
+    if ((double)i != v.num) {
+        vm_fail(out, "Array index must be an integer");
+        return 0;
+    }
+    return i;
+}
+
+static const char* value_to_key_string_vm(FILE* out, const VMValue& v) {
+    if (v.tag != VTag::STR) {
+        vm_fail(out, "Map key must be a string");
+        return "";
+    }
+    return v.str ? v.str : "";
+}
+
+static VMValue default_array_value_vm() {
+    return v_int(0);
+}
+
+static void array_reserve_vm(VMArray* arr, int new_cap) {
+    if (!arr) return;
+    if (new_cap <= arr->capacity) return;
+    if (new_cap < 1) new_cap = 1;
+    arr->items.resize((size_t)new_cap, default_array_value_vm());
+    arr->capacity = new_cap;
+}
+
+static void array_push_vm(VMArray* arr, const VMValue& v) {
+    if (!arr) return;
+    if (arr->length >= arr->capacity) {
+        const int next_cap = arr->capacity > 0 ? (arr->capacity * 2) : 1;
+        array_reserve_vm(arr, next_cap);
+    }
+    if ((size_t)arr->length >= arr->items.size()) {
+        arr->items.resize((size_t)arr->length + 1, default_array_value_vm());
+        arr->capacity = (int)arr->items.size();
+    }
+    arr->items[(size_t)arr->length++] = v;
+}
+
+static VMValue array_pop_vm(FILE* out, VMArray* arr) {
+    if (!arr) {
+        vm_fail(out, "Null array instance");
+        return v_nil();
+    }
+    if (arr->length <= 0) {
+        vm_fail(out, "pop() on empty array");
+        return v_nil();
+    }
+    VMValue v = arr->items[(size_t)(arr->length - 1)];
+    arr->length--;
+    return v;
+}
+
+static void array_resize_vm(FILE* out, VMArray* arr, int new_len) {
+    if (!arr) {
+        vm_fail(out, "Null array instance");
+        return;
+    }
+    if (new_len < 0) {
+        vm_fail(out, "resize() requires newSize >= 0");
+        return;
+    }
+    if (new_len > arr->capacity) {
+        int next_cap = arr->capacity > 0 ? arr->capacity : 1;
+        while (next_cap < new_len) {
+            if (next_cap > 100000000 / 2) { next_cap = new_len; break; }
+            next_cap *= 2;
+        }
+        array_reserve_vm(arr, next_cap);
+    }
+    if ((size_t)new_len > arr->items.size()) {
+        arr->items.resize((size_t)new_len, default_array_value_vm());
+        arr->capacity = (int)arr->items.size();
+    }
+    if (new_len > arr->length) {
+        for (int i = arr->length; i < new_len; i++) {
+            arr->items[(size_t)i] = default_array_value_vm();
+        }
+    }
+    arr->length = new_len;
+}
+
+static VMMap* map_new_vm() {
+    VMMap* m = new VMMap();
+    m->head = nullptr;
+    m->size = 0;
+    return m;
+}
+
+static VMMapEntry* map_find_entry_vm(VMMap* m, const char* key) {
+    for (VMMapEntry* e = m ? m->head : nullptr; e; e = e->next) {
+        if (e->key == (key ? key : "")) return e;
+    }
+    return nullptr;
+}
+
+static bool map_has_vm(FILE* out, VMMap* m, const char* key) {
+    if (!m) {
+        vm_fail(out, "Null map instance");
+        return false;
+    }
+    if (!key) {
+        vm_fail(out, "Null map key");
+        return false;
+    }
+    return map_find_entry_vm(m, key) != nullptr;
+}
+
+static VMValue map_get_vm(FILE* out, VMMap* m, const char* key) {
+    if (!m) {
+        vm_fail(out, "Null map instance");
+        return v_nil();
+    }
+    if (!key) {
+        vm_fail(out, "Null map key");
+        return v_nil();
+    }
+    VMMapEntry* e = map_find_entry_vm(m, key);
+    if (!e) {
+        vm_fail(out, "Key not found in map");
+        return v_nil();
+    }
+    return e->value;
+}
+
+static VMValue map_put_vm(FILE* out, VMMap* m, const char* key, const VMValue& v) {
+    if (!m) {
+        vm_fail(out, "Null map instance");
+        return v_nil();
+    }
+    if (!key) {
+        vm_fail(out, "Null map key");
+        return v_nil();
+    }
+    VMMapEntry* e = map_find_entry_vm(m, key);
+    if (e) {
+        e->value = v;
+        return v;
+    }
+    VMMapEntry* ne = new VMMapEntry();
+    ne->key = key;
+    ne->value = v;
+    ne->next = m->head;
+    m->head = ne;
+    m->size++;
+    return v;
+}
+
+static bool map_del_vm(FILE* out, VMMap* m, const char* key) {
+    if (!m) {
+        vm_fail(out, "Null map instance");
+        return false;
+    }
+    if (!key) {
+        vm_fail(out, "Null map key");
+        return false;
+    }
+    VMMapEntry* prev = nullptr;
+    for (VMMapEntry* e = m->head; e; e = e->next) {
+        if (e->key == key) {
+            if (prev) prev->next = e->next;
+            else m->head = e->next;
+            m->size--;
+            return true;
+        }
+        prev = e;
+    }
+    return false;
+}
+
+static VMSet* set_new_vm() {
+    VMSet* s = new VMSet();
+    s->head = nullptr;
+    s->size = 0;
+    return s;
+}
+
+static VMSetEntry* set_find_entry_vm(VMSet* s, const char* key) {
+    for (VMSetEntry* e = s ? s->head : nullptr; e; e = e->next) {
+        if (e->key == (key ? key : "")) return e;
+    }
+    return nullptr;
+}
+
+static bool set_has_vm(FILE* out, VMSet* s, const char* key) {
+    if (!s) {
+        vm_fail(out, "Null set instance");
+        return false;
+    }
+    if (!key) {
+        vm_fail(out, "Null set key");
+        return false;
+    }
+    return set_find_entry_vm(s, key) != nullptr;
+}
+
+static void set_add_vm(FILE* out, VMSet* s, const char* key) {
+    if (!s) {
+        vm_fail(out, "Null set instance");
+        return;
+    }
+    if (!key) {
+        vm_fail(out, "Null set key");
+        return;
+    }
+    if (set_find_entry_vm(s, key)) return;
+    VMSetEntry* ne = new VMSetEntry();
+    ne->key = key;
+    ne->next = s->head;
+    s->head = ne;
+    s->size++;
+}
+
+static bool set_del_vm(FILE* out, VMSet* s, const char* key) {
+    if (!s) {
+        vm_fail(out, "Null set instance");
+        return false;
+    }
+    if (!key) {
+        vm_fail(out, "Null set key");
+        return false;
+    }
+    VMSetEntry* prev = nullptr;
+    for (VMSetEntry* e = s->head; e; e = e->next) {
+        if (e->key == key) {
+            if (prev) prev->next = e->next;
+            else s->head = e->next;
+            s->size--;
+            return true;
+        }
+        prev = e;
+    }
+    return false;
 }
 
 static void store_name_note(FILE* out, const char* name, const VMValue& v) {
@@ -276,6 +592,19 @@ static void store_name_note(FILE* out, const char* name, const VMValue& v) {
     if (v.tag == VTag::STRUCT) {
         VMStruct* inst = reinterpret_cast<VMStruct*>(v.ptr);
         declare_or_update_current_scope_struct(name, inst && inst->type_name ? inst->type_name : "", inst);
+        return;
+    }
+
+    if (v.tag == VTag::ARRAY) {
+        declare_or_update_current_scope_array(name, v.ptr);
+        return;
+    }
+    if (v.tag == VTag::MAP) {
+        declare_or_update_current_scope_map(name, v.ptr);
+        return;
+    }
+    if (v.tag == VTag::SET) {
+        declare_or_update_current_scope_set(name, v.ptr);
         return;
     }
 
@@ -307,6 +636,19 @@ static void store_name_stage(FILE* out, const char* name, const VMValue& v) {
     if (v.tag == VTag::STRUCT) {
         VMStruct* inst = reinterpret_cast<VMStruct*>(v.ptr);
         insert_or_update_struct(name, inst && inst->type_name ? inst->type_name : "", inst);
+        return;
+    }
+
+    if (v.tag == VTag::ARRAY) {
+        insert_or_update_array(name, v.ptr);
+        return;
+    }
+    if (v.tag == VTag::MAP) {
+        insert_or_update_map(name, v.ptr);
+        return;
+    }
+    if (v.tag == VTag::SET) {
+        insert_or_update_set(name, v.ptr);
         return;
     }
 
@@ -348,6 +690,19 @@ static bool load_name(FILE* out, const char* name, VMValue* out_v) {
         VMValue v = v_struct(inst);
         v.struct_type = sym->struct_type;
         *out_v = v;
+        return true;
+    }
+
+    if (std::strcmp(sym->type, "array") == 0) {
+        *out_v = v_array(reinterpret_cast<VMArray*>(sym->ptr_value));
+        return true;
+    }
+    if (std::strcmp(sym->type, "map") == 0) {
+        *out_v = v_map(reinterpret_cast<VMMap*>(sym->ptr_value));
+        return true;
+    }
+    if (std::strcmp(sym->type, "set") == 0) {
+        *out_v = v_set(reinterpret_cast<VMSet*>(sym->ptr_value));
         return true;
     }
 
@@ -820,6 +1175,307 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
                 break;
             }
 
+            case OpCode::ARRAY_LIT: {
+                const int n = ins.a;
+                if (n < 0) {
+                    vm_fail(out, "Bad ARRAY_LIT count");
+                    return false;
+                }
+                VMArray* arr = new VMArray();
+                arr->capacity = n;
+                arr->length = n;
+                arr->items.resize((size_t)n, default_array_value_vm());
+                /* Pop in reverse because stack top is last element */
+                for (int i = n - 1; i >= 0; --i) {
+                    arr->items[(size_t)i] = pop();
+                }
+                if (!push(v_array(arr))) return false;
+                break;
+            }
+
+            case OpCode::INDEX_GET: {
+                VMValue iv = pop();
+                VMValue tv = pop();
+
+                if (tv.tag == VTag::ARRAY) {
+                    VMArray* arr = reinterpret_cast<VMArray*>(tv.ptr);
+                    if (!arr) {
+                        vm_fail(out, "Null array instance");
+                        return false;
+                    }
+                    long long idx = value_to_index_vm(out, iv);
+                    if (idx < 0 || idx >= (long long)arr->length) {
+                        vm_fail(out, "Array index out of bounds");
+                        return false;
+                    }
+                    if (!push(arr->items[(size_t)idx])) return false;
+                    break;
+                }
+
+                if (tv.tag == VTag::MAP) {
+                    VMMap* m = reinterpret_cast<VMMap*>(tv.ptr);
+                    const char* key = value_to_key_string_vm(out, iv);
+                    if (!key) return false;
+                    if (!push(map_get_vm(out, m, key))) return false;
+                    break;
+                }
+
+                if (tv.tag == VTag::SET) {
+                    VMSet* s = reinterpret_cast<VMSet*>(tv.ptr);
+                    const char* key = value_to_key_string_vm(out, iv);
+                    if (!key) return false;
+                    if (!push(v_bool(set_has_vm(out, s, key)))) return false;
+                    break;
+                }
+
+                vm_fail(out, "Indexing requires an array, map, or set");
+                return false;
+            }
+
+            case OpCode::INDEX_SET: {
+                VMValue rhs = pop();
+                VMValue iv = pop();
+                VMValue tv = pop();
+
+                if (tv.tag == VTag::ARRAY) {
+                    VMArray* arr = reinterpret_cast<VMArray*>(tv.ptr);
+                    if (!arr) {
+                        vm_fail(out, "Null array instance");
+                        return false;
+                    }
+                    long long idx = value_to_index_vm(out, iv);
+                    if (idx < 0 || idx >= (long long)arr->length) {
+                        vm_fail(out, "Array index out of bounds");
+                        return false;
+                    }
+                    arr->items[(size_t)idx] = rhs;
+                    break;
+                }
+
+                if (tv.tag == VTag::MAP) {
+                    VMMap* m = reinterpret_cast<VMMap*>(tv.ptr);
+                    const char* key = value_to_key_string_vm(out, iv);
+                    if (!key) return false;
+                    (void)map_put_vm(out, m, key, rhs);
+                    break;
+                }
+
+                if (tv.tag == VTag::SET) {
+                    VMSet* s = reinterpret_cast<VMSet*>(tv.ptr);
+                    const char* key = value_to_key_string_vm(out, iv);
+                    if (!key) return false;
+                    if (rhs.tag != VTag::BOOL) {
+                        vm_fail(out, "Set assignment requires bool (true adds, false removes)");
+                        return false;
+                    }
+                    if (rhs.boolean) set_add_vm(out, s, key);
+                    else (void)set_del_vm(out, s, key);
+                    break;
+                }
+
+                vm_fail(out, "Index assignment requires array, map, or set value");
+                return false;
+            }
+
+            case OpCode::ARRAY_NEW: {
+                VMValue nv = pop();
+                long long nll = value_to_index_vm(out, nv);
+                if (nll < 0) {
+                    vm_fail(out, "array(n) requires n >= 0");
+                    return false;
+                }
+                if (nll > 1000000) {
+                    vm_fail(out, "array(n) too large");
+                    return false;
+                }
+                const int n = (int)nll;
+                VMArray* arr = new VMArray();
+                arr->capacity = n;
+                arr->length = n;
+                arr->items.resize((size_t)n, default_array_value_vm());
+                if (!push(v_array(arr))) return false;
+                break;
+            }
+
+            case OpCode::ARRAY_PUSH: {
+                VMValue vv = pop();
+                VMValue av = pop();
+                if (av.tag != VTag::ARRAY) {
+                    vm_fail(out, "push() first argument must be an array");
+                    return false;
+                }
+                VMArray* arr = reinterpret_cast<VMArray*>(av.ptr);
+                if (!arr) {
+                    vm_fail(out, "Null array instance");
+                    return false;
+                }
+                array_push_vm(arr, vv);
+                if (!push(v_int(arr->length))) return false;
+                break;
+            }
+
+            case OpCode::ARRAY_POP: {
+                VMValue av = pop();
+                if (av.tag != VTag::ARRAY) {
+                    vm_fail(out, "pop() argument must be an array");
+                    return false;
+                }
+                VMArray* arr = reinterpret_cast<VMArray*>(av.ptr);
+                if (!push(array_pop_vm(out, arr))) return false;
+                break;
+            }
+
+            case OpCode::ARRAY_RESIZE: {
+                VMValue nv = pop();
+                VMValue av = pop();
+                if (av.tag != VTag::ARRAY) {
+                    vm_fail(out, "resize() first argument must be an array");
+                    return false;
+                }
+                long long nll = value_to_index_vm(out, nv);
+                if (nll < 0) {
+                    vm_fail(out, "resize() requires newSize >= 0");
+                    return false;
+                }
+                if (nll > 1000000) {
+                    vm_fail(out, "resize() too large");
+                    return false;
+                }
+                VMArray* arr = reinterpret_cast<VMArray*>(av.ptr);
+                array_resize_vm(out, arr, (int)nll);
+                if (!push(v_int(arr ? arr->length : 0))) return false;
+                break;
+            }
+
+            case OpCode::MAP_NEW: {
+                if (!push(v_map(map_new_vm()))) return false;
+                break;
+            }
+
+            case OpCode::SET_NEW: {
+                if (!push(v_set(set_new_vm()))) return false;
+                break;
+            }
+
+            case OpCode::SET_ADD: {
+                VMValue kv = pop();
+                VMValue sv = pop();
+                if (sv.tag != VTag::SET) {
+                    vm_fail(out, "add() first argument must be a set");
+                    return false;
+                }
+                const char* key = value_to_key_string_vm(out, kv);
+                if (!key) return false;
+                VMSet* s = reinterpret_cast<VMSet*>(sv.ptr);
+                set_add_vm(out, s, key);
+                if (!push(v_int(s ? s->size : 0))) return false;
+                break;
+            }
+
+            case OpCode::COLL_HAS: {
+                VMValue kv = pop();
+                VMValue cv = pop();
+                const char* key = value_to_key_string_vm(out, kv);
+                if (!key) return false;
+                if (cv.tag == VTag::MAP) {
+                    VMMap* m = reinterpret_cast<VMMap*>(cv.ptr);
+                    if (!push(v_bool(map_has_vm(out, m, key)))) return false;
+                    break;
+                }
+                if (cv.tag == VTag::SET) {
+                    VMSet* s = reinterpret_cast<VMSet*>(cv.ptr);
+                    if (!push(v_bool(set_has_vm(out, s, key)))) return false;
+                    break;
+                }
+                vm_fail(out, "has() first argument must be a map or set");
+                return false;
+            }
+
+            case OpCode::MAP_GET: {
+                VMValue kv = pop();
+                VMValue mv = pop();
+                if (mv.tag != VTag::MAP) {
+                    vm_fail(out, "get() first argument must be a map");
+                    return false;
+                }
+                const char* key = value_to_key_string_vm(out, kv);
+                if (!key) return false;
+                VMMap* m = reinterpret_cast<VMMap*>(mv.ptr);
+                if (!push(map_get_vm(out, m, key))) return false;
+                break;
+            }
+
+            case OpCode::MAP_PUT: {
+                VMValue vv = pop();
+                VMValue kv = pop();
+                VMValue mv = pop();
+                if (mv.tag != VTag::MAP) {
+                    vm_fail(out, "put() first argument must be a map");
+                    return false;
+                }
+                const char* key = value_to_key_string_vm(out, kv);
+                if (!key) return false;
+                VMMap* m = reinterpret_cast<VMMap*>(mv.ptr);
+                VMValue outv = map_put_vm(out, m, key, vv);
+                if (!push(outv)) return false;
+                break;
+            }
+
+            case OpCode::COLL_DEL: {
+                VMValue kv = pop();
+                VMValue cv = pop();
+                const char* key = value_to_key_string_vm(out, kv);
+                if (!key) return false;
+                if (cv.tag == VTag::MAP) {
+                    VMMap* m = reinterpret_cast<VMMap*>(cv.ptr);
+                    if (!push(v_bool(map_del_vm(out, m, key)))) return false;
+                    break;
+                }
+                if (cv.tag == VTag::SET) {
+                    VMSet* s = reinterpret_cast<VMSet*>(cv.ptr);
+                    if (!push(v_bool(set_del_vm(out, s, key)))) return false;
+                    break;
+                }
+                vm_fail(out, "del() first argument must be a map or set");
+                return false;
+            }
+
+            case OpCode::COLL_KEYS: {
+                VMValue cv = pop();
+                VMArray* arr = new VMArray();
+                arr->capacity = 0;
+                arr->length = 0;
+
+                if (cv.tag == VTag::MAP) {
+                    VMMap* m = reinterpret_cast<VMMap*>(cv.ptr);
+                    const int n = m ? m->size : 0;
+                    arr->capacity = n;
+                    arr->length = n;
+                    arr->items.resize((size_t)n, default_array_value_vm());
+                    int i = 0;
+                    for (VMMapEntry* e = m ? m->head : nullptr; e; e = e->next) {
+                        arr->items[(size_t)i++] = v_str(e->key.c_str());
+                    }
+                    if (!push(v_array(arr))) return false;
+                    break;
+                }
+                if (cv.tag == VTag::SET) {
+                    VMSet* s = reinterpret_cast<VMSet*>(cv.ptr);
+                    const int n = s ? s->size : 0;
+                    arr->capacity = n;
+                    arr->length = n;
+                    arr->items.resize((size_t)n, default_array_value_vm());
+                    int i = 0;
+                    for (VMSetEntry* e = s ? s->head : nullptr; e; e = e->next) {
+                        arr->items[(size_t)i++] = v_str(e->key.c_str());
+                    }
+                    if (!push(v_array(arr))) return false;
+                    break;
+                }
+                vm_fail(out, "keys() argument must be a map or set");
+                return false;
+            }
+
             case OpCode::NEG: {
                 VMValue a = pop();
                 if (!is_numeric(a)) {
@@ -1019,6 +1675,21 @@ const char* opcode_name(OpCode op) {
         case OpCode::DOTCALL: return "DOTCALL";
         case OpCode::SUPERCALL: return "SUPERCALL";
         case OpCode::SUPERCTOR: return "SUPERCTOR";
+        case OpCode::ARRAY_LIT: return "ARRAY_LIT";
+        case OpCode::INDEX_GET: return "INDEX_GET";
+        case OpCode::INDEX_SET: return "INDEX_SET";
+        case OpCode::ARRAY_NEW: return "ARRAY_NEW";
+        case OpCode::ARRAY_PUSH: return "ARRAY_PUSH";
+        case OpCode::ARRAY_POP: return "ARRAY_POP";
+        case OpCode::ARRAY_RESIZE: return "ARRAY_RESIZE";
+        case OpCode::MAP_NEW: return "MAP_NEW";
+        case OpCode::SET_NEW: return "SET_NEW";
+        case OpCode::SET_ADD: return "SET_ADD";
+        case OpCode::COLL_HAS: return "COLL_HAS";
+        case OpCode::MAP_GET: return "MAP_GET";
+        case OpCode::MAP_PUT: return "MAP_PUT";
+        case OpCode::COLL_DEL: return "COLL_DEL";
+        case OpCode::COLL_KEYS: return "COLL_KEYS";
         case OpCode::ADD: return "ADD";
         case OpCode::SUB: return "SUB";
         case OpCode::MUL: return "MUL";

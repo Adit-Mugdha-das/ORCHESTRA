@@ -122,10 +122,172 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
             fn.emit(OpCode::LOAD_NAME, id);
             return;
         }
+        case EXPR_ARRAYLIT: {
+            int n = 0;
+            for (ExprList* p = e->array_elems; p; p = p->next) {
+                compile_expr(prog, fn, p->expr);
+                n++;
+            }
+            fn.emit(OpCode::ARRAY_LIT, n);
+            return;
+        }
+        case EXPR_INDEX: {
+            compile_expr(prog, fn, e->index_target);
+            compile_expr(prog, fn, e->index_expr);
+            fn.emit(OpCode::INDEX_GET);
+            return;
+        }
         case EXPR_CALL: {
             if (!e->callee) {
                 vm_compile_error(g_compile_out, "Null callee name");
                 std::exit(1);
+            }
+
+            /* Built-in collection helpers (match interpreter semantics) */
+            if (std::strcmp(e->callee, "array") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 1) {
+                    vm_compile_error(g_compile_out, "array(n) expects exactly 1 argument");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                fn.emit(OpCode::ARRAY_NEW);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "push") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 2) {
+                    vm_compile_error(g_compile_out, "push(arr, value) expects exactly 2 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                fn.emit(OpCode::ARRAY_PUSH);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "pop") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 1) {
+                    vm_compile_error(g_compile_out, "pop(arr) expects exactly 1 argument");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                fn.emit(OpCode::ARRAY_POP);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "resize") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 2) {
+                    vm_compile_error(g_compile_out, "resize(arr, newSize) expects exactly 2 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                fn.emit(OpCode::ARRAY_RESIZE);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "map") == 0) {
+                if (e->args) {
+                    vm_compile_error(g_compile_out, "map() expects no arguments");
+                    std::exit(1);
+                }
+                fn.emit(OpCode::MAP_NEW);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "set") == 0) {
+                if (e->args) {
+                    vm_compile_error(g_compile_out, "set() expects no arguments");
+                    std::exit(1);
+                }
+                fn.emit(OpCode::SET_NEW);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "add") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 2) {
+                    vm_compile_error(g_compile_out, "add(s, key) expects exactly 2 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                fn.emit(OpCode::SET_ADD);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "has") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 2) {
+                    vm_compile_error(g_compile_out, "has(m, key) expects exactly 2 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                fn.emit(OpCode::COLL_HAS);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "get") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 2) {
+                    vm_compile_error(g_compile_out, "get(m, key) expects exactly 2 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                fn.emit(OpCode::MAP_GET);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "put") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 3) {
+                    vm_compile_error(g_compile_out, "put(m, key, value) expects exactly 3 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                compile_expr(prog, fn, e->args->next->next->expr);
+                fn.emit(OpCode::MAP_PUT);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "del") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 2) {
+                    vm_compile_error(g_compile_out, "del(m, key) expects exactly 2 arguments");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                compile_expr(prog, fn, e->args->next->expr);
+                fn.emit(OpCode::COLL_DEL);
+                return;
+            }
+
+            if (std::strcmp(e->callee, "keys") == 0) {
+                int argc = 0;
+                for (ExprList* a = e->args; a; a = a->next) argc++;
+                if (argc != 1) {
+                    vm_compile_error(g_compile_out, "keys(m) expects exactly 1 argument");
+                    std::exit(1);
+                }
+                compile_expr(prog, fn, e->args->expr);
+                fn.emit(OpCode::COLL_KEYS);
+                return;
             }
 
             /* If it's a known flow, compile as normal call; otherwise, allow constructor-like TypeName(args). */
@@ -317,6 +479,20 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             fn.emit(OpCode::PUSH_STR, field_id);
             compile_expr(prog, fn, s->expr);
             fn.emit(OpCode::FIELD_SET);
+            return;
+        }
+        case STMT_INDEX_STAGE: {
+            if (!s->name) {
+                vm_compile_error(g_compile_out, "Null index-stage name");
+                std::exit(1);
+            }
+
+            /* Interpreter requires the target be a variable (array/map/set). */
+            const int id = prog.add_str(s->name);
+            fn.emit(OpCode::LOAD_NAME, id);
+            compile_expr(prog, fn, s->index);
+            compile_expr(prog, fn, s->expr);
+            fn.emit(OpCode::INDEX_SET);
             return;
         }
         case STMT_EXPR:

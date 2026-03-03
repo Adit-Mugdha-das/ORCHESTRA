@@ -38,6 +38,26 @@ enum class OpCode {
     SUPERCALL, /* a = argc; stack: member_str, args... -> pushes return */
     SUPERCTOR, /* a = argc; stack: args... -> pushes return */
 
+    /* Collections (Milestone 9) */
+    ARRAY_LIT,   /* a = count; stack: elems... -> pushes array */
+    INDEX_GET,   /* stack: target, index -> pushes value */
+    INDEX_SET,   /* stack: target, index, value -> (sets) */
+
+    ARRAY_NEW,    /* stack: n -> pushes array */
+    ARRAY_PUSH,   /* stack: array, value -> pushes new length(int) */
+    ARRAY_POP,    /* stack: array -> pushes popped value */
+    ARRAY_RESIZE, /* stack: array, newSize -> pushes length(int) */
+
+    MAP_NEW, /* pushes map */
+    SET_NEW, /* pushes set */
+
+    SET_ADD,    /* stack: set, key -> pushes size(int) */
+    COLL_HAS,   /* stack: (map|set), key -> pushes bool */
+    MAP_GET,    /* stack: map, key -> pushes value */
+    MAP_PUT,    /* stack: map, key, value -> pushes value */
+    COLL_DEL,   /* stack: (map|set), key -> pushes bool */
+    COLL_KEYS,  /* stack: (map|set) -> pushes array of string */
+
     /* Arithmetic */
     ADD,
     SUB,
