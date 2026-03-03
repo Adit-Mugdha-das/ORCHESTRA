@@ -1,0 +1,8 @@
+flow sum2 take(a, b) {
+  return a + b;
+}
+
+flow main take() {
+  emit sum2(2, 3);
+  emit sum2(10, -7);
+}

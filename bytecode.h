@@ -2,6 +2,7 @@
 #define BYTECODE_H
 
 #include <cstdio>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,9 @@ enum class OpCode {
     LOAD_NAME,  /* a = const_str index */
     NOTE_NAME,  /* a = const_str index; pops 1 value */
     STAGE_NAME, /* a = const_str index; pops 1 value */
+
+    /* Calls (Milestone 7) */
+    CALL, /* a = func index, b = argc */
 
     /* Arithmetic */
     ADD,
@@ -61,6 +65,9 @@ struct Instr {
 struct BytecodeFunc {
     std::vector<Instr> code;
 
+    /* For calls (Milestone 7): parameter names for this function. */
+    std::vector<int> param_name_ids; /* const_str indices */
+
     void emit(OpCode op, int a = 0, int b = 0) {
         code.push_back(Instr{op, a, b});
     }
@@ -71,7 +78,7 @@ struct BytecodeProgram {
     std::vector<double> const_num;
     std::vector<std::string> const_str;
 
-    std::vector<BytecodeFunc> functions;
+    std::deque<BytecodeFunc> functions;
 
     int add_num(double v) {
         const_num.push_back(v);

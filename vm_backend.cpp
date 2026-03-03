@@ -5,9 +5,19 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "flow_registry.h"
+
 static FILE* g_compile_out = nullptr;
+
+static BytecodeProgram* g_prog = nullptr;
+static std::unordered_map<std::string, int> g_func_index;
+static std::unordered_map<std::string, bool> g_func_compiling;
+
+static int g_scope_depth = 0; /* lexical block scopes (STMT_BLOCK only) */
 
 static void vm_compile_error(FILE* out, const char* msg) {
     if (!out) out = stdout;
@@ -20,10 +30,13 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s);
 
 struct LoopContext {
     size_t continue_target;
+    int scope_depth_at_loop;
     std::vector<size_t> break_jumps;
 };
 
 static std::vector<LoopContext> g_loops;
+
+static int ensure_compiled_flow(const char* name);
 
 static void compile_lit(BytecodeProgram& prog, BytecodeFunc& fn, const Expr* e) {
     if (std::strcmp(e->lit_type, "int") == 0) {
@@ -107,6 +120,22 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
             fn.emit(OpCode::LOAD_NAME, id);
             return;
         }
+        case EXPR_CALL: {
+            if (!e->callee) {
+                vm_compile_error(g_compile_out, "Null callee name");
+                std::exit(1);
+            }
+
+            int argc = 0;
+            for (ExprList* a = e->args; a; a = a->next) {
+                compile_expr(prog, fn, a->expr);
+                argc++;
+            }
+
+            const int fidx = ensure_compiled_flow(e->callee);
+            fn.emit(OpCode::CALL, fidx, argc);
+            return;
+        }
         case EXPR_UNARY:
             compile_unary(prog, fn, e);
             return;
@@ -174,8 +203,10 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             return;
         case STMT_BLOCK:
             fn.emit(OpCode::SCOPE_PUSH);
+            g_scope_depth++;
             compile_stmt_list(prog, fn, s->list);
             fn.emit(OpCode::SCOPE_POP);
+            g_scope_depth--;
             return;
         case STMT_NOTE: {
             if (!s->name) {
@@ -230,6 +261,7 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
 
             LoopContext ctx;
             ctx.continue_target = loop_begin;
+            ctx.scope_depth_at_loop = g_scope_depth;
             g_loops.push_back(ctx);
 
             compile_stmt(prog, fn, s->body);
@@ -252,6 +284,9 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
                 vm_compile_error(g_compile_out, "break used outside repeat");
                 std::exit(1);
             }
+
+            const int target_depth = g_loops.back().scope_depth_at_loop;
+            for (int i = 0; i < (g_scope_depth - target_depth); i++) fn.emit(OpCode::SCOPE_POP);
             const size_t at = emit_jump(fn, OpCode::JMP, 0);
             g_loops.back().break_jumps.push_back(at);
             return;
@@ -261,7 +296,20 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
                 vm_compile_error(g_compile_out, "continue used outside repeat");
                 std::exit(1);
             }
+
+            const int target_depth = g_loops.back().scope_depth_at_loop;
+            for (int i = 0; i < (g_scope_depth - target_depth); i++) fn.emit(OpCode::SCOPE_POP);
             fn.emit(OpCode::JMP, (int)g_loops.back().continue_target);
+            return;
+        }
+        case STMT_RETURN: {
+            if (s->expr) compile_expr(prog, fn, s->expr);
+            else fn.emit(OpCode::PUSH_INT, 0);
+
+            /* Unwind any active block scopes before returning (matches interpreter). */
+            for (int i = 0; i < g_scope_depth; i++) fn.emit(OpCode::SCOPE_POP);
+
+            fn.emit(OpCode::RET);
             return;
         }
         default:
@@ -270,21 +318,81 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
     }
 }
 
+static int ensure_compiled_flow(const char* name) {
+    if (!name || !g_prog) {
+        vm_compile_error(g_compile_out, "Internal: compiler not initialized");
+        std::exit(1);
+    }
+
+    auto it = g_func_index.find(name);
+    if (it != g_func_index.end()) return it->second;
+
+    /* Create placeholder index early to support recursion */
+    const int idx = (int)g_prog->functions.size();
+    g_prog->functions.emplace_back();
+    g_func_index[std::string(name)] = idx;
+
+    if (g_func_compiling[std::string(name)]) {
+        return idx;
+    }
+    g_func_compiling[std::string(name)] = true;
+
+    FlowHandle* h = flow_registry_find(name);
+    if (!h) {
+        vm_compile_error(g_compile_out, "Call to undefined flow");
+        std::exit(1);
+    }
+
+    NameList* params = flow_registry_params(h);
+    Stmt* body = flow_registry_body(h);
+
+    BytecodeFunc& fn = g_prog->functions[(size_t)idx];
+    fn.code.clear();
+    fn.param_name_ids.clear();
+
+    for (NameList* p = params; p; p = p->next) {
+        if (!p->name) continue;
+        fn.param_name_ids.push_back(g_prog->add_str(p->name));
+    }
+
+    const int saved_scope = g_scope_depth;
+    g_scope_depth = 0;
+
+    compile_stmt(*g_prog, fn, body);
+
+    /* Default return value when flow ends without explicit return. */
+    fn.emit(OpCode::PUSH_INT, 0);
+    fn.emit(OpCode::RET);
+
+    g_scope_depth = saved_scope;
+    g_func_compiling[std::string(name)] = false;
+    return idx;
+}
+
 extern "C" int execute_program_vm(Stmt* root, FILE* out) {
     if (!out) out = stdout;
     g_compile_out = out;
+
+    g_prog = nullptr;
+    g_func_index.clear();
+    g_func_compiling.clear();
+    g_loops.clear();
+    g_scope_depth = 0;
     if (!root) {
         std::fprintf(out, "VM backend: no entry block\n");
         return 1;
     }
 
     BytecodeProgram prog;
+    g_prog = &prog;
+
     prog.functions.emplace_back();
-    BytecodeFunc& fn = prog.functions.back();
+    BytecodeFunc& entry = prog.functions.back();
 
-    compile_stmt(prog, fn, root);
-    fn.emit(OpCode::RET);
+    compile_stmt(prog, entry, root);
+    entry.emit(OpCode::PUSH_INT, 0);
+    entry.emit(OpCode::RET);
 
-    const bool ok = vm_execute(out, prog, fn);
+    const bool ok = vm_execute(out, prog, entry);
     return ok ? 0 : 1;
 }

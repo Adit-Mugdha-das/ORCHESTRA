@@ -171,8 +171,19 @@ static bool load_name(FILE* out, const char* name, VMValue* out_v) {
 
 static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const BytecodeFunc& fn) {
     static const int STACK_MAX = 1024;
+    static const int MAX_CALL_DEPTH = 200;
+
     VMValue stack[STACK_MAX];
     int sp = 0;
+
+    struct Frame {
+        const BytecodeFunc* fn;
+        size_t ip;
+    };
+    std::vector<Frame> frames;
+
+    const BytecodeFunc* cur = &fn;
+    size_t ip = 0;
 
     auto push = [&](const VMValue& v) -> bool {
         if (sp >= STACK_MAX) {
@@ -191,9 +202,8 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
         return stack[--sp];
     };
 
-    size_t ip = 0;
-    while (ip < fn.code.size()) {
-        const Instr ins = fn.code[ip++];
+    while (ip < cur->code.size()) {
+        const Instr ins = cur->code[ip++];
         switch (ins.op) {
             case OpCode::NOP:
                 break;
@@ -256,6 +266,49 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
                 }
                 VMValue v = pop();
                 store_name_stage(out, prog.const_str[(size_t)ins.a].c_str(), v);
+                break;
+            }
+
+            case OpCode::CALL: {
+                const int func_index = ins.a;
+                const int argc = ins.b;
+
+                if (func_index < 0 || (size_t)func_index >= prog.functions.size()) {
+                    vm_fail(out, "Bad function index for CALL");
+                    return false;
+                }
+                if ((int)frames.size() >= MAX_CALL_DEPTH) {
+                    vm_fail(out, "Recursion limit exceeded");
+                    return false;
+                }
+
+                const BytecodeFunc* callee = &prog.functions[(size_t)func_index];
+                const int arity = (int)callee->param_name_ids.size();
+                if (argc != arity) {
+                    vm_fail(out, "Argument count mismatch in CALL");
+                    return false;
+                }
+
+                /* Save caller frame */
+                frames.push_back(Frame{cur, ip});
+
+                /* Create param scope (matches interpreter's per-call push_scope) */
+                push_scope();
+
+                /* Bind params in reverse to match stack order */
+                for (int i = arity - 1; i >= 0; --i) {
+                    VMValue arg = pop();
+                    const int pid = callee->param_name_ids[(size_t)i];
+                    if (pid < 0 || (size_t)pid >= prog.const_str.size()) {
+                        vm_fail(out, "Bad param name id");
+                        return false;
+                    }
+                    store_name_note(out, prog.const_str[(size_t)pid].c_str(), arg);
+                }
+
+                /* Transfer control */
+                cur = callee;
+                ip = 0;
                 break;
             }
 
@@ -366,7 +419,7 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
             }
 
             case OpCode::JMP:
-                if (ins.a < 0 || (size_t)ins.a > fn.code.size()) {
+                if (ins.a < 0 || (size_t)ins.a > cur->code.size()) {
                     vm_fail(out, "Bad jump target");
                     return false;
                 }
@@ -380,7 +433,7 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
                     return false;
                 }
                 if (!cond.boolean) {
-                    if (ins.a < 0 || (size_t)ins.a > fn.code.size()) {
+                    if (ins.a < 0 || (size_t)ins.a > cur->code.size()) {
                         vm_fail(out, "Bad jump target");
                         return false;
                     }
@@ -395,8 +448,20 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
                 break;
             }
 
-            case OpCode::RET:
-                return true;
+            case OpCode::RET: {
+                if (frames.empty()) {
+                    return true;
+                }
+
+                /* Pop per-call param scope */
+                pop_scope();
+
+                Frame fr = frames.back();
+                frames.pop_back();
+                cur = fr.fn;
+                ip = fr.ip;
+                break;
+            }
 
             default:
                 vm_fail(out, "Unknown opcode");
@@ -430,6 +495,7 @@ const char* opcode_name(OpCode op) {
         case OpCode::LOAD_NAME: return "LOAD_NAME";
         case OpCode::NOTE_NAME: return "NOTE_NAME";
         case OpCode::STAGE_NAME: return "STAGE_NAME";
+        case OpCode::CALL: return "CALL";
         case OpCode::ADD: return "ADD";
         case OpCode::SUB: return "SUB";
         case OpCode::MUL: return "MUL";
