@@ -67,11 +67,28 @@ typedef struct ArrayInstance {
     int length;
     Value *items;
 } ArrayInstance;
+typedef struct MapEntry {
+    char *key;
+    Value value;
+    struct MapEntry *next;
+} MapEntry;
+
+typedef struct MapInstance {
+    MapEntry *head;
+    int size;
+} MapInstance;
 
 static Value default_array_value(void);
 static void array_reserve(ArrayInstance *arr, int new_cap);
 static void array_push(ArrayInstance *arr, Value v);
 static Value array_pop(ArrayInstance *arr);
+static void array_resize(ArrayInstance *arr, int new_len);
+
+static MapInstance* map_new(void);
+static int map_has(MapInstance *m, const char *key);
+static Value map_get(MapInstance *m, const char *key);
+static void map_put(MapInstance *m, const char *key, Value v);
+static int map_del(MapInstance *m, const char *key);
 
 static FILE *g_out = NULL;
 static int g_loop_depth = 0;
@@ -175,6 +192,17 @@ static Value value_struct(const char *type_name, void *ptr) {
     v.ptr = ptr;
     strncpy(v.struct_type, type_name ? type_name : "", sizeof(v.struct_type) - 1);
     v.struct_type[sizeof(v.struct_type) - 1] = '\0';
+    return v;
+}
+
+static Value value_map(void *ptr) {
+    Value v;
+    strcpy(v.type, "map");
+    v.num = 0;
+    v.str[0] = '\0';
+    v.boolean = 0;
+    v.ptr = ptr;
+    v.struct_type[0] = '\0';
     return v;
 }
 
@@ -636,6 +664,7 @@ static Value symbol_to_value(Symbol *sym) {
     if (strcmp(sym->type, "string") == 0) return value_string(sym->str_value);
     if (strcmp(sym->type, "struct") == 0) return value_struct(sym->struct_type, sym->ptr_value);
     if (strcmp(sym->type, "array") == 0) return value_array(sym->ptr_value);
+    if (strcmp(sym->type, "map") == 0) return value_map(sym->ptr_value);
     runtime_error("Unknown symbol type");
     return value_num(0, "int");
 }
@@ -651,6 +680,8 @@ static void store_value_note(const char *name, Value v) {
         declare_or_update_current_scope_struct(name, v.struct_type, v.ptr);
     else if (strcmp(v.type, "array") == 0)
         declare_or_update_current_scope_array(name, v.ptr);
+    else if (strcmp(v.type, "map") == 0)
+        declare_or_update_current_scope_map(name, v.ptr);
     else
         runtime_error("Unsupported value type in note");
 }
@@ -666,6 +697,8 @@ static void store_value_stage(const char *name, Value v) {
         insert_or_update_struct(name, v.struct_type, v.ptr);
     else if (strcmp(v.type, "array") == 0)
         insert_or_update_array(name, v.ptr);
+    else if (strcmp(v.type, "map") == 0)
+        insert_or_update_map(name, v.ptr);
     else
         runtime_error("Unsupported value type in stage");
 }
@@ -675,6 +708,76 @@ static long long value_to_index(Value v) {
     long long i = (long long)v.num;
     if ((double)i != v.num) runtime_error("Array index must be an integer");
     return i;
+}
+
+static const char* value_to_key_string(const Value *v) {
+    if (!v) runtime_error("Null key value");
+    if (strcmp(v->type, "string") != 0) runtime_error("Map key must be a string");
+    return v->str;
+}
+
+static MapInstance* map_new(void) {
+    MapInstance *m = (MapInstance*)arena_calloc(1, sizeof(MapInstance));
+    if (!m) exit(1);
+    m->head = NULL;
+    m->size = 0;
+    return m;
+}
+
+static MapEntry* map_find_entry(MapInstance *m, const char *key) {
+    for (MapEntry *e = m ? m->head : NULL; e; e = e->next) {
+        if (strcmp(e->key, key) == 0) return e;
+    }
+    return NULL;
+}
+
+static int map_has(MapInstance *m, const char *key) {
+    if (!m) runtime_error("Null map instance");
+    if (!key) runtime_error("Null map key");
+    return map_find_entry(m, key) ? 1 : 0;
+}
+
+static Value map_get(MapInstance *m, const char *key) {
+    if (!m) runtime_error("Null map instance");
+    if (!key) runtime_error("Null map key");
+    MapEntry *e = map_find_entry(m, key);
+    if (!e) runtime_error("Key not found in map");
+    return e->value;
+}
+
+static void map_put(MapInstance *m, const char *key, Value v) {
+    if (!m) runtime_error("Null map instance");
+    if (!key) runtime_error("Null map key");
+    MapEntry *e = map_find_entry(m, key);
+    if (e) {
+        e->value = v;
+        return;
+    }
+
+    MapEntry *ne = (MapEntry*)arena_calloc(1, sizeof(MapEntry));
+    if (!ne) exit(1);
+    ne->key = arena_strdup(key);
+    ne->value = v;
+    ne->next = m->head;
+    m->head = ne;
+    m->size++;
+}
+
+static int map_del(MapInstance *m, const char *key) {
+    if (!m) runtime_error("Null map instance");
+    if (!key) runtime_error("Null map key");
+
+    MapEntry *prev = NULL;
+    for (MapEntry *e = m->head; e; e = e->next) {
+        if (strcmp(e->key, key) == 0) {
+            if (prev) prev->next = e->next;
+            else m->head = e->next;
+            m->size--;
+            return 1;
+        }
+        prev = e;
+    }
+    return 0;
 }
 
 static Value coerce_to_field_type(Value v, const char *field_type) {
@@ -944,14 +1047,23 @@ static Value eval_expr(Expr *e) {
 
     if (e->kind == EXPR_INDEX) {
         Value tv = eval_expr(e->index_target);
-        if (strcmp(tv.type, "array") != 0) runtime_error("Indexing requires an array");
-        ArrayInstance *arr = (ArrayInstance*)tv.ptr;
-        if (!arr) runtime_error("Null array instance");
-
         Value iv = eval_expr(e->index_expr);
-        long long idx = value_to_index(iv);
-        if (idx < 0 || idx >= (long long)arr->length) runtime_error("Array index out of bounds");
-        return arr->items[(int)idx];
+        if (strcmp(tv.type, "array") == 0) {
+            ArrayInstance *arr = (ArrayInstance*)tv.ptr;
+            if (!arr) runtime_error("Null array instance");
+            long long idx = value_to_index(iv);
+            if (idx < 0 || idx >= (long long)arr->length) runtime_error("Array index out of bounds");
+            return arr->items[(int)idx];
+        }
+
+        if (strcmp(tv.type, "map") == 0) {
+            MapInstance *m = (MapInstance*)tv.ptr;
+            if (!m) runtime_error("Null map instance");
+            const char *key = value_to_key_string(&iv);
+            return map_get(m, key);
+        }
+
+        runtime_error("Indexing requires an array or map");
     }
 
     if (e->kind == EXPR_CALL) {
@@ -1006,6 +1118,76 @@ static Value eval_expr(Expr *e) {
 
             array_resize((ArrayInstance*)av.ptr, (int)nll);
             return value_num((double)((ArrayInstance*)av.ptr)->length, "int");
+        }
+
+        /* Built-in map helpers (string key -> any value) */
+        if (e->callee && strcmp(e->callee, "map") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 0) runtime_error("map() expects no arguments");
+            return value_map(map_new());
+        }
+
+        if (e->callee && strcmp(e->callee, "has") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 2) runtime_error("has(m, key) expects exactly 2 arguments");
+            Value mv = eval_expr(e->args->expr);
+            if (strcmp(mv.type, "map") != 0) runtime_error("has() first argument must be a map");
+            Value kv = eval_expr(e->args->next->expr);
+            const char *key = value_to_key_string(&kv);
+            return value_bool(map_has((MapInstance*)mv.ptr, key));
+        }
+
+        if (e->callee && strcmp(e->callee, "get") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 2) runtime_error("get(m, key) expects exactly 2 arguments");
+            Value mv = eval_expr(e->args->expr);
+            if (strcmp(mv.type, "map") != 0) runtime_error("get() first argument must be a map");
+            Value kv = eval_expr(e->args->next->expr);
+            const char *key = value_to_key_string(&kv);
+            return map_get((MapInstance*)mv.ptr, key);
+        }
+
+        if (e->callee && strcmp(e->callee, "put") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 3) runtime_error("put(m, key, value) expects exactly 3 arguments");
+            Value mv = eval_expr(e->args->expr);
+            if (strcmp(mv.type, "map") != 0) runtime_error("put() first argument must be a map");
+            Value kv = eval_expr(e->args->next->expr);
+            const char *key = value_to_key_string(&kv);
+            Value vv = eval_expr(e->args->next->next->expr);
+            map_put((MapInstance*)mv.ptr, key, vv);
+            return vv;
+        }
+
+        if (e->callee && strcmp(e->callee, "del") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 2) runtime_error("del(m, key) expects exactly 2 arguments");
+            Value mv = eval_expr(e->args->expr);
+            if (strcmp(mv.type, "map") != 0) runtime_error("del() first argument must be a map");
+            Value kv = eval_expr(e->args->next->expr);
+            const char *key = value_to_key_string(&kv);
+            return value_bool(map_del((MapInstance*)mv.ptr, key));
+        }
+
+        if (e->callee && strcmp(e->callee, "keys") == 0) {
+            int argc = exprlist_length(e->args);
+            if (argc != 1) runtime_error("keys(m) expects exactly 1 argument");
+            Value mv = eval_expr(e->args->expr);
+            if (strcmp(mv.type, "map") != 0) runtime_error("keys() argument must be a map");
+            MapInstance *m = (MapInstance*)mv.ptr;
+            if (!m) runtime_error("Null map instance");
+
+            ArrayInstance *arr = (ArrayInstance*)arena_calloc(1, sizeof(ArrayInstance));
+            if (!arr) exit(1);
+            arr->capacity = m->size;
+            arr->length = m->size;
+            arr->items = arr->length > 0 ? (Value*)arena_calloc((size_t)arr->length, sizeof(Value)) : NULL;
+
+            int i = 0;
+            for (MapEntry *e2 = m->head; e2; e2 = e2->next) {
+                arr->items[i++] = value_string(e2->key);
+            }
+            return value_array(arr);
         }
 
         FlowHandle *flow = find_flow_handle(e->callee);
@@ -1213,6 +1395,20 @@ static void fprint_value_inline(FILE *out, Value v) {
         return;
     }
 
+    if (strcmp(v.type, "map") == 0) {
+        MapInstance *m = (MapInstance*)v.ptr;
+        fprintf(out, "{");
+        int first = 1;
+        for (MapEntry *e = m ? m->head : NULL; e; e = e->next) {
+            if (!first) fprintf(out, ",");
+            first = 0;
+            fprintf(out, "%s=", e->key);
+            fprint_value_inline(out, e->value);
+        }
+        fprintf(out, "}");
+        return;
+    }
+
     fprintf(out, "<%s>", v.type);
 }
 
@@ -1271,16 +1467,27 @@ static ExecSignal exec_stmt(Stmt *s) {
         }
         case STMT_INDEX_STAGE: {
             Symbol *sym = get_symbol_or_error(s->name);
-            if (strcmp(sym->type, "array") != 0) runtime_error("Index assignment requires array variable");
-            ArrayInstance *arr = (ArrayInstance*)sym->ptr_value;
-            if (!arr) runtime_error("Null array instance");
-
             Value iv = eval_expr(s->index);
-            long long idx = value_to_index(iv);
-            if (idx < 0 || idx >= (long long)arr->length) runtime_error("Array index out of bounds");
-
             Value rhs = eval_expr(s->expr);
-            arr->items[(int)idx] = rhs;
+            if (strcmp(sym->type, "array") == 0) {
+                ArrayInstance *arr = (ArrayInstance*)sym->ptr_value;
+                if (!arr) runtime_error("Null array instance");
+
+                long long idx = value_to_index(iv);
+                if (idx < 0 || idx >= (long long)arr->length) runtime_error("Array index out of bounds");
+                arr->items[(int)idx] = rhs;
+                return SIG_OK;
+            }
+
+            if (strcmp(sym->type, "map") == 0) {
+                MapInstance *m = (MapInstance*)sym->ptr_value;
+                if (!m) runtime_error("Null map instance");
+                const char *key = value_to_key_string(&iv);
+                map_put(m, key, rhs);
+                return SIG_OK;
+            }
+
+            runtime_error("Index assignment requires array or map variable");
             return SIG_OK;
         }
         case STMT_EMIT: {
