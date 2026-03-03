@@ -7,6 +7,7 @@ call build_cpp.bat || exit /b 1
 set FAIL=0
 
 call :compare_one test_vm_exprs.txt out_vm_exprs_ast.txt out_vm_exprs_vm.txt || set FAIL=1
+call :compare_one test_vm_blocks.txt out_vm_blocks_ast.txt out_vm_blocks_vm.txt || set FAIL=1
 
 if %FAIL%==0 (
   echo.
