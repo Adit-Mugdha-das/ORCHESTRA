@@ -2452,12 +2452,14 @@ int main(int argc, char *argv[]) {
   const char *backend = "ast";
   const char *emit = NULL;
   const char *emit_style = "cpp";
+  const char *trace = NULL;
 
   /* minimal CLI:
       orchestra.exe input.txt output.txt [--backend=ast|vm]
       orchestra.exe input.txt output.txt --emit=cpp
       orchestra.exe input.txt output.txt --emit cpp
       orchestra.exe input.txt output.txt --emit=bytecode
+      orchestra.exe input.txt output.txt --trace=vm
       orchestra.exe input.txt output.txt --emit=cpp --emit-style=cpp|pseudo
   */
   for (int i = 3; i < argc; i++) {
@@ -2470,10 +2472,12 @@ int main(int argc, char *argv[]) {
     else if (strcmp(argv[i], "--emit-style=cpp") == 0) emit_style = "cpp";
     else if (strcmp(argv[i], "--emit-style=pseudo") == 0) emit_style = "pseudo";
     else if (strcmp(argv[i], "--emit-style") == 0 && i + 1 < argc) emit_style = argv[++i];
+    else if (strcmp(argv[i], "--trace=vm") == 0) trace = "vm";
+    else if (strcmp(argv[i], "--trace") == 0 && i + 1 < argc) trace = argv[++i];
   }
 
   if (argc < 3) {
-    printf("Usage: %s input.txt output.txt [--backend=ast|vm] [--emit=cpp|bytecode] [--emit-style=cpp|pseudo]\n", argv[0]);
+    printf("Usage: %s input.txt output.txt [--backend=ast|vm] [--emit=cpp|bytecode] [--emit-style=cpp|pseudo] [--trace=vm]\n", argv[0]);
     return 1;
   }
 
@@ -2499,6 +2503,9 @@ int main(int argc, char *argv[]) {
       } else if (emit && strcmp(emit, "bytecode") == 0) {
         extern int dump_bytecode_vm(struct Stmt *root, FILE *out);
         dump_bytecode_vm(g_main_block, yyout);
+      } else if (trace && strcmp(trace, "vm") == 0) {
+        extern int trace_program_vm(struct Stmt *root, FILE *out, int max_steps);
+        trace_program_vm(g_main_block, yyout, 10000);
       } else if (strcmp(backend, "vm") == 0) {
         extern int execute_program_vm(struct Stmt *root, FILE *out);
         execute_program_vm(g_main_block, yyout);
