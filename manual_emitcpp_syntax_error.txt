@@ -1,3 +1,0 @@
-flow main take() {
-  emit 1 + ;
-}

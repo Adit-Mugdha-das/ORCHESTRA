@@ -1,8 +1,0 @@
-flow main take() {
-  emit 1 + 2 * 3;
-  emit (10 - 3) / 7;
-  emit !false;
-  emit -5 + 2;
-  emit "ok";
-  emit 3 >= 3;
-}

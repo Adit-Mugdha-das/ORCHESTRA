@@ -1,3 +1,0 @@
-20
-Person{age=42,name=Ali}
-42

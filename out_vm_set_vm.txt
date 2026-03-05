@@ -1,9 +1,0 @@
-set{}
-set{b,a}
-true
-false
-true
-false
-[x,b]
-true
-set{x}
