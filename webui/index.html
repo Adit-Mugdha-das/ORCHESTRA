@@ -44,7 +44,10 @@
           <div class="panelMeta" id="status">Ready</div>
         </div>
         <div id="editor" class="editorSurface"></div>
-        <textarea id="fallback" class="fallback" spellcheck="false"></textarea>
+        <div id="fallbackWrap" class="fallbackWrap" aria-hidden="true">
+          <pre id="fallbackGutter" class="fallbackGutter"></pre>
+          <textarea id="fallback" class="fallback" spellcheck="false"></textarea>
+        </div>
       </section>
 
       <section class="panel output">

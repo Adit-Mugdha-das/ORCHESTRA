@@ -76,6 +76,7 @@
 
 extern FILE *yyin;
 extern FILE *yyout;
+extern int yylineno;
 
 int yylex();
 int yyerror(const char *s);
@@ -100,7 +101,7 @@ static char *qualify_name(const char *a, const char *b) {
 
 
 /* Line 189 of yacc.c  */
-#line 104 "orchestra.tab.c"
+#line 105 "orchestra.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -123,7 +124,7 @@ static char *qualify_name(const char *a, const char *b) {
 /* "%code requires" blocks.  */
 
 /* Line 209 of yacc.c  */
-#line 31 "orchestra.y"
+#line 32 "orchestra.y"
 
   struct Expr;
   struct Stmt;
@@ -135,7 +136,7 @@ static char *qualify_name(const char *a, const char *b) {
 
 
 /* Line 209 of yacc.c  */
-#line 139 "orchestra.tab.c"
+#line 140 "orchestra.tab.c"
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -205,7 +206,7 @@ typedef union YYSTYPE
 {
 
 /* Line 214 of yacc.c  */
-#line 40 "orchestra.y"
+#line 41 "orchestra.y"
 
   struct { double num; int is_float; } numlit;
   char *sval;
@@ -221,7 +222,7 @@ typedef union YYSTYPE
 
 
 /* Line 214 of yacc.c  */
-#line 225 "orchestra.tab.c"
+#line 226 "orchestra.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -233,7 +234,7 @@ typedef union YYSTYPE
 
 
 /* Line 264 of yacc.c  */
-#line 237 "orchestra.tab.c"
+#line 238 "orchestra.tab.c"
 
 #ifdef short
 # undef short
@@ -560,16 +561,16 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    97,    97,    98,    99,   100,   106,   105,   123,   124,
-     128,   129,   133,   134,   145,   150,   151,   155,   166,   170,
-     177,   178,   179,   180,   184,   204,   205,   209,   210,   214,
-     216,   222,   226,   227,   231,   234,   237,   240,   243,   246,
-     249,   252,   255,   258,   261,   264,   266,   269,   271,   272,
-     277,   279,   285,   291,   295,   296,   300,   301,   305,   313,
-     314,   318,   319,   320,   321,   322,   323,   327,   328,   329,
-     333,   334,   335,   339,   340,   341,   345,   346,   347,   348,
-     349,   350,   351,   352,   353,   354,   355,   356,   357,   358,
-     360,   361,   362,   366,   367,   371,   372
+       0,    98,    98,    99,   100,   101,   107,   106,   124,   125,
+     129,   130,   134,   135,   146,   151,   152,   156,   167,   171,
+     178,   179,   180,   181,   185,   205,   206,   210,   211,   215,
+     217,   223,   227,   228,   232,   235,   238,   241,   244,   247,
+     250,   253,   256,   259,   262,   265,   267,   270,   272,   273,
+     278,   280,   286,   292,   296,   297,   301,   302,   306,   314,
+     315,   319,   320,   321,   322,   323,   324,   328,   329,   330,
+     334,   335,   336,   340,   341,   342,   346,   347,   348,   349,
+     350,   351,   352,   353,   354,   355,   356,   357,   358,   359,
+     361,   362,   363,   367,   368,   372,   373
 };
 #endif
 
@@ -1601,7 +1602,7 @@ yyreduce:
         case 6:
 
 /* Line 1455 of yacc.c  */
-#line 106 "orchestra.y"
+#line 107 "orchestra.y"
     {
       /* Enter class/ensemble scope for name qualification. */
       g_current_class = (yyvsp[(2) - (3)].sval);
@@ -1613,7 +1614,7 @@ yyreduce:
   case 7:
 
 /* Line 1455 of yacc.c  */
-#line 113 "orchestra.y"
+#line 114 "orchestra.y"
     {
       /* Make symphony constructible (constructor + fields), like a class with data. */
       register_ensemble((yyvsp[(2) - (7)].sval), (yyvsp[(3) - (7)].sval), g_current_symphony_fields);
@@ -1626,21 +1627,21 @@ yyreduce:
   case 8:
 
 /* Line 1455 of yacc.c  */
-#line 123 "orchestra.y"
+#line 124 "orchestra.y"
     { (yyval.sval) = (yyvsp[(2) - (2)].sval); ;}
     break;
 
   case 9:
 
 /* Line 1455 of yacc.c  */
-#line 124 "orchestra.y"
+#line 125 "orchestra.y"
     { (yyval.sval) = NULL; ;}
     break;
 
   case 13:
 
 /* Line 1455 of yacc.c  */
-#line 135 "orchestra.y"
+#line 136 "orchestra.y"
     {
         g_current_symphony_fields = fieldlist_append(g_current_symphony_fields, (yyvsp[(1) - (3)].sval), (yyvsp[(2) - (3)].sval));
       ;}
@@ -1649,21 +1650,21 @@ yyreduce:
   case 14:
 
 /* Line 1455 of yacc.c  */
-#line 146 "orchestra.y"
+#line 147 "orchestra.y"
     { register_ensemble((yyvsp[(2) - (5)].sval), NULL, (yyvsp[(4) - (5)].field_list)); ;}
     break;
 
   case 16:
 
 /* Line 1455 of yacc.c  */
-#line 151 "orchestra.y"
+#line 152 "orchestra.y"
     { (yyval.field_list) = NULL; ;}
     break;
 
   case 17:
 
 /* Line 1455 of yacc.c  */
-#line 156 "orchestra.y"
+#line 157 "orchestra.y"
     {
         /* append single-node list */
         FieldList *tail = (yyvsp[(1) - (2)].field_list);
@@ -1679,14 +1680,14 @@ yyreduce:
   case 18:
 
 /* Line 1455 of yacc.c  */
-#line 166 "orchestra.y"
+#line 167 "orchestra.y"
     { (yyval.field_list) = (yyvsp[(1) - (1)].field_list); ;}
     break;
 
   case 19:
 
 /* Line 1455 of yacc.c  */
-#line 171 "orchestra.y"
+#line 172 "orchestra.y"
     {
         (yyval.field_list) = fieldlist_append(NULL, (yyvsp[(1) - (3)].sval), (yyvsp[(2) - (3)].sval));
       ;}
@@ -1695,35 +1696,35 @@ yyreduce:
   case 20:
 
 /* Line 1455 of yacc.c  */
-#line 177 "orchestra.y"
+#line 178 "orchestra.y"
     { (yyval.sval) = arena_strdup("int"); ;}
     break;
 
   case 21:
 
 /* Line 1455 of yacc.c  */
-#line 178 "orchestra.y"
+#line 179 "orchestra.y"
     { (yyval.sval) = arena_strdup("float"); ;}
     break;
 
   case 22:
 
 /* Line 1455 of yacc.c  */
-#line 179 "orchestra.y"
+#line 180 "orchestra.y"
     { (yyval.sval) = arena_strdup("bool"); ;}
     break;
 
   case 23:
 
 /* Line 1455 of yacc.c  */
-#line 180 "orchestra.y"
+#line 181 "orchestra.y"
     { (yyval.sval) = arena_strdup("string"); ;}
     break;
 
   case 24:
 
 /* Line 1455 of yacc.c  */
-#line 185 "orchestra.y"
+#line 186 "orchestra.y"
     {
       char *fname = (yyvsp[(2) - (4)].sval);
       if (g_current_class) {
@@ -1746,217 +1747,217 @@ yyreduce:
   case 25:
 
 /* Line 1455 of yacc.c  */
-#line 204 "orchestra.y"
+#line 205 "orchestra.y"
     { (yyval.name_list) = (yyvsp[(3) - (4)].name_list); ;}
     break;
 
   case 26:
 
 /* Line 1455 of yacc.c  */
-#line 205 "orchestra.y"
+#line 206 "orchestra.y"
     { (yyval.name_list) = NULL; ;}
     break;
 
   case 27:
 
 /* Line 1455 of yacc.c  */
-#line 209 "orchestra.y"
+#line 210 "orchestra.y"
     { (yyval.name_list) = (yyvsp[(1) - (1)].name_list); ;}
     break;
 
   case 28:
 
 /* Line 1455 of yacc.c  */
-#line 210 "orchestra.y"
+#line 211 "orchestra.y"
     { (yyval.name_list) = NULL; ;}
     break;
 
   case 29:
 
 /* Line 1455 of yacc.c  */
-#line 215 "orchestra.y"
+#line 216 "orchestra.y"
     { (yyval.name_list) = namelist_append((yyvsp[(1) - (3)].name_list), (yyvsp[(3) - (3)].sval)); ;}
     break;
 
   case 30:
 
 /* Line 1455 of yacc.c  */
-#line 217 "orchestra.y"
+#line 218 "orchestra.y"
     { (yyval.name_list) = namelist_append(NULL, (yyvsp[(1) - (1)].sval)); ;}
     break;
 
   case 31:
 
 /* Line 1455 of yacc.c  */
-#line 222 "orchestra.y"
+#line 223 "orchestra.y"
     { (yyval.stmt) = make_block((yyvsp[(2) - (3)].stmt_list)); ;}
     break;
 
   case 32:
 
 /* Line 1455 of yacc.c  */
-#line 226 "orchestra.y"
+#line 227 "orchestra.y"
     { (yyval.stmt_list) = stmtlist_append((yyvsp[(1) - (2)].stmt_list), (yyvsp[(2) - (2)].stmt)); ;}
     break;
 
   case 33:
 
 /* Line 1455 of yacc.c  */
-#line 227 "orchestra.y"
+#line 228 "orchestra.y"
     { (yyval.stmt_list) = NULL; ;}
     break;
 
   case 34:
 
 /* Line 1455 of yacc.c  */
-#line 232 "orchestra.y"
+#line 233 "orchestra.y"
     { (yyval.stmt) = make_assign(STMT_NOTE, (yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr)); ;}
     break;
 
   case 35:
 
 /* Line 1455 of yacc.c  */
-#line 235 "orchestra.y"
+#line 236 "orchestra.y"
     { (yyval.stmt) = make_assign(STMT_STAGE, (yyvsp[(2) - (5)].sval), (yyvsp[(4) - (5)].expr)); ;}
     break;
 
   case 36:
 
 /* Line 1455 of yacc.c  */
-#line 238 "orchestra.y"
+#line 239 "orchestra.y"
     { (yyval.stmt) = make_index_stage((yyvsp[(2) - (8)].sval), (yyvsp[(4) - (8)].expr), (yyvsp[(7) - (8)].expr)); ;}
     break;
 
   case 37:
 
 /* Line 1455 of yacc.c  */
-#line 241 "orchestra.y"
+#line 242 "orchestra.y"
     { (yyval.stmt) = make_field_stage((yyvsp[(2) - (7)].sval), (yyvsp[(4) - (7)].sval), (yyvsp[(6) - (7)].expr)); ;}
     break;
 
   case 38:
 
 /* Line 1455 of yacc.c  */
-#line 244 "orchestra.y"
+#line 245 "orchestra.y"
     { (yyval.stmt) = make_field_stage((yyvsp[(2) - (7)].sval), (yyvsp[(4) - (7)].sval), (yyvsp[(6) - (7)].expr)); ;}
     break;
 
   case 39:
 
 /* Line 1455 of yacc.c  */
-#line 247 "orchestra.y"
+#line 248 "orchestra.y"
     { (yyval.stmt) = make_expr_stmt(make_superctor((yyvsp[(3) - (5)].expr_list))); ;}
     break;
 
   case 40:
 
 /* Line 1455 of yacc.c  */
-#line 250 "orchestra.y"
+#line 251 "orchestra.y"
     { (yyval.stmt) = make_emit((yyvsp[(2) - (3)].expr)); ;}
     break;
 
   case 41:
 
 /* Line 1455 of yacc.c  */
-#line 253 "orchestra.y"
+#line 254 "orchestra.y"
     { (yyval.stmt) = make_return((yyvsp[(2) - (3)].expr)); ;}
     break;
 
   case 42:
 
 /* Line 1455 of yacc.c  */
-#line 256 "orchestra.y"
+#line 257 "orchestra.y"
     { (yyval.stmt) = make_return(NULL); ;}
     break;
 
   case 43:
 
 /* Line 1455 of yacc.c  */
-#line 259 "orchestra.y"
+#line 260 "orchestra.y"
     { (yyval.stmt) = make_expr_stmt(make_call((yyvsp[(1) - (5)].sval), (yyvsp[(3) - (5)].expr_list))); ;}
     break;
 
   case 44:
 
 /* Line 1455 of yacc.c  */
-#line 262 "orchestra.y"
+#line 263 "orchestra.y"
     { (yyval.stmt) = make_expr_stmt(make_dotcall((yyvsp[(1) - (7)].sval), (yyvsp[(3) - (7)].sval), (yyvsp[(5) - (7)].expr_list))); ;}
     break;
 
   case 45:
 
 /* Line 1455 of yacc.c  */
-#line 265 "orchestra.y"
+#line 266 "orchestra.y"
     { (yyval.stmt) = make_assign(STMT_BREAK, NULL, NULL); ;}
     break;
 
   case 46:
 
 /* Line 1455 of yacc.c  */
-#line 267 "orchestra.y"
+#line 268 "orchestra.y"
     { (yyval.stmt) = make_assign(STMT_CONTINUE, NULL, NULL); ;}
     break;
 
   case 50:
 
 /* Line 1455 of yacc.c  */
-#line 278 "orchestra.y"
+#line 279 "orchestra.y"
     { (yyval.stmt) = make_branch((yyvsp[(3) - (5)].expr), (yyvsp[(5) - (5)].stmt), NULL); ;}
     break;
 
   case 51:
 
 /* Line 1455 of yacc.c  */
-#line 280 "orchestra.y"
+#line 281 "orchestra.y"
     { (yyval.stmt) = make_branch((yyvsp[(3) - (7)].expr), (yyvsp[(5) - (7)].stmt), (yyvsp[(7) - (7)].stmt)); ;}
     break;
 
   case 52:
 
 /* Line 1455 of yacc.c  */
-#line 286 "orchestra.y"
+#line 287 "orchestra.y"
     { (yyval.stmt) = make_repeat((yyvsp[(3) - (5)].expr), (yyvsp[(5) - (5)].stmt)); ;}
     break;
 
   case 53:
 
 /* Line 1455 of yacc.c  */
-#line 291 "orchestra.y"
+#line 292 "orchestra.y"
     { (yyval.expr) = (yyvsp[(1) - (1)].expr); ;}
     break;
 
   case 54:
 
 /* Line 1455 of yacc.c  */
-#line 295 "orchestra.y"
+#line 296 "orchestra.y"
     { (yyval.expr) = make_bin(OP_OR, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 55:
 
 /* Line 1455 of yacc.c  */
-#line 296 "orchestra.y"
+#line 297 "orchestra.y"
     { (yyval.expr) = (yyvsp[(1) - (1)].expr); ;}
     break;
 
   case 56:
 
 /* Line 1455 of yacc.c  */
-#line 300 "orchestra.y"
+#line 301 "orchestra.y"
     { (yyval.expr) = make_bin(OP_AND, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 57:
 
 /* Line 1455 of yacc.c  */
-#line 301 "orchestra.y"
+#line 302 "orchestra.y"
     { (yyval.expr) = (yyvsp[(1) - (1)].expr); ;}
     break;
 
   case 58:
 
 /* Line 1455 of yacc.c  */
-#line 306 "orchestra.y"
+#line 307 "orchestra.y"
     {
         if ((yyvsp[(2) - (2)].chain_parts)) (yyval.expr) = make_chain((yyvsp[(1) - (2)].expr), (yyvsp[(2) - (2)].chain_parts));
         else (yyval.expr) = (yyvsp[(1) - (2)].expr);
@@ -1966,273 +1967,273 @@ yyreduce:
   case 59:
 
 /* Line 1455 of yacc.c  */
-#line 313 "orchestra.y"
+#line 314 "orchestra.y"
     { (yyval.chain_parts) = chainpart_append((yyvsp[(1) - (3)].chain_parts), (yyvsp[(2) - (3)].ival), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 60:
 
 /* Line 1455 of yacc.c  */
-#line 314 "orchestra.y"
+#line 315 "orchestra.y"
     { (yyval.chain_parts) = NULL; ;}
     break;
 
   case 61:
 
 /* Line 1455 of yacc.c  */
-#line 318 "orchestra.y"
+#line 319 "orchestra.y"
     { (yyval.ival) = OP_LT; ;}
     break;
 
   case 62:
 
 /* Line 1455 of yacc.c  */
-#line 319 "orchestra.y"
+#line 320 "orchestra.y"
     { (yyval.ival) = OP_LE; ;}
     break;
 
   case 63:
 
 /* Line 1455 of yacc.c  */
-#line 320 "orchestra.y"
+#line 321 "orchestra.y"
     { (yyval.ival) = OP_GT; ;}
     break;
 
   case 64:
 
 /* Line 1455 of yacc.c  */
-#line 321 "orchestra.y"
+#line 322 "orchestra.y"
     { (yyval.ival) = OP_GE; ;}
     break;
 
   case 65:
 
 /* Line 1455 of yacc.c  */
-#line 322 "orchestra.y"
+#line 323 "orchestra.y"
     { (yyval.ival) = OP_EQ; ;}
     break;
 
   case 66:
 
 /* Line 1455 of yacc.c  */
-#line 323 "orchestra.y"
+#line 324 "orchestra.y"
     { (yyval.ival) = OP_NE; ;}
     break;
 
   case 67:
 
 /* Line 1455 of yacc.c  */
-#line 327 "orchestra.y"
+#line 328 "orchestra.y"
     { (yyval.expr) = make_bin(OP_PLUS, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 68:
 
 /* Line 1455 of yacc.c  */
-#line 328 "orchestra.y"
+#line 329 "orchestra.y"
     { (yyval.expr) = make_bin(OP_MINUS, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 69:
 
 /* Line 1455 of yacc.c  */
-#line 329 "orchestra.y"
+#line 330 "orchestra.y"
     { (yyval.expr) = (yyvsp[(1) - (1)].expr); ;}
     break;
 
   case 70:
 
 /* Line 1455 of yacc.c  */
-#line 333 "orchestra.y"
+#line 334 "orchestra.y"
     { (yyval.expr) = make_bin(OP_MUL, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 71:
 
 /* Line 1455 of yacc.c  */
-#line 334 "orchestra.y"
+#line 335 "orchestra.y"
     { (yyval.expr) = make_bin(OP_DIV, (yyvsp[(1) - (3)].expr), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 72:
 
 /* Line 1455 of yacc.c  */
-#line 335 "orchestra.y"
+#line 336 "orchestra.y"
     { (yyval.expr) = (yyvsp[(1) - (1)].expr); ;}
     break;
 
   case 73:
 
 /* Line 1455 of yacc.c  */
-#line 339 "orchestra.y"
+#line 340 "orchestra.y"
     { (yyval.expr) = make_unary(OP_NEG, (yyvsp[(2) - (2)].expr)); ;}
     break;
 
   case 74:
 
 /* Line 1455 of yacc.c  */
-#line 340 "orchestra.y"
+#line 341 "orchestra.y"
     { (yyval.expr) = make_unary(OP_NOT, (yyvsp[(2) - (2)].expr)); ;}
     break;
 
   case 75:
 
 /* Line 1455 of yacc.c  */
-#line 341 "orchestra.y"
+#line 342 "orchestra.y"
     { (yyval.expr) = (yyvsp[(1) - (1)].expr); ;}
     break;
 
   case 76:
 
 /* Line 1455 of yacc.c  */
-#line 345 "orchestra.y"
+#line 346 "orchestra.y"
     { (yyval.expr) = (yyvsp[(2) - (3)].expr); ;}
     break;
 
   case 77:
 
 /* Line 1455 of yacc.c  */
-#line 346 "orchestra.y"
+#line 347 "orchestra.y"
     { (yyval.expr) = make_arraylit((yyvsp[(2) - (3)].expr_list)); ;}
     break;
 
   case 78:
 
 /* Line 1455 of yacc.c  */
-#line 347 "orchestra.y"
+#line 348 "orchestra.y"
     { (yyval.expr) = make_lit_bool(1); ;}
     break;
 
   case 79:
 
 /* Line 1455 of yacc.c  */
-#line 348 "orchestra.y"
+#line 349 "orchestra.y"
     { (yyval.expr) = make_lit_bool(0); ;}
     break;
 
   case 80:
 
 /* Line 1455 of yacc.c  */
-#line 349 "orchestra.y"
+#line 350 "orchestra.y"
     { (yyval.expr) = make_lit_num((yyvsp[(1) - (1)].numlit).num, (yyvsp[(1) - (1)].numlit).is_float); ;}
     break;
 
   case 81:
 
 /* Line 1455 of yacc.c  */
-#line 350 "orchestra.y"
+#line 351 "orchestra.y"
     { (yyval.expr) = make_lit_string((yyvsp[(1) - (1)].sval)); free((yyvsp[(1) - (1)].sval)); ;}
     break;
 
   case 82:
 
 /* Line 1455 of yacc.c  */
-#line 351 "orchestra.y"
+#line 352 "orchestra.y"
     { (yyval.expr) = make_index(make_var((yyvsp[(1) - (4)].sval)), (yyvsp[(3) - (4)].expr)); ;}
     break;
 
   case 83:
 
 /* Line 1455 of yacc.c  */
-#line 352 "orchestra.y"
+#line 353 "orchestra.y"
     { (yyval.expr) = make_call((yyvsp[(1) - (4)].sval), (yyvsp[(3) - (4)].expr_list)); ;}
     break;
 
   case 84:
 
 /* Line 1455 of yacc.c  */
-#line 353 "orchestra.y"
+#line 354 "orchestra.y"
     { (yyval.expr) = make_dotcall((yyvsp[(1) - (6)].sval), (yyvsp[(3) - (6)].sval), (yyvsp[(5) - (6)].expr_list)); ;}
     break;
 
   case 85:
 
 /* Line 1455 of yacc.c  */
-#line 354 "orchestra.y"
+#line 355 "orchestra.y"
     { (yyval.expr) = make_field((yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval)); ;}
     break;
 
   case 86:
 
 /* Line 1455 of yacc.c  */
-#line 355 "orchestra.y"
+#line 356 "orchestra.y"
     { (yyval.expr) = make_call((yyvsp[(1) - (4)].sval), (yyvsp[(3) - (4)].expr_list)); ;}
     break;
 
   case 87:
 
 /* Line 1455 of yacc.c  */
-#line 356 "orchestra.y"
+#line 357 "orchestra.y"
     { (yyval.expr) = make_dotcall((yyvsp[(1) - (6)].sval), (yyvsp[(3) - (6)].sval), (yyvsp[(5) - (6)].expr_list)); ;}
     break;
 
   case 88:
 
 /* Line 1455 of yacc.c  */
-#line 357 "orchestra.y"
+#line 358 "orchestra.y"
     { (yyval.expr) = make_field((yyvsp[(1) - (3)].sval), (yyvsp[(3) - (3)].sval)); ;}
     break;
 
   case 89:
 
 /* Line 1455 of yacc.c  */
-#line 358 "orchestra.y"
+#line 359 "orchestra.y"
     { (yyval.expr) = make_var((yyvsp[(1) - (1)].sval)); ;}
     break;
 
   case 90:
 
 /* Line 1455 of yacc.c  */
-#line 360 "orchestra.y"
+#line 361 "orchestra.y"
     { (yyval.expr) = make_supercall((yyvsp[(3) - (6)].sval), (yyvsp[(5) - (6)].expr_list)); ;}
     break;
 
   case 91:
 
 /* Line 1455 of yacc.c  */
-#line 361 "orchestra.y"
+#line 362 "orchestra.y"
     { (yyval.expr) = make_superctor((yyvsp[(3) - (4)].expr_list)); ;}
     break;
 
   case 92:
 
 /* Line 1455 of yacc.c  */
-#line 362 "orchestra.y"
+#line 363 "orchestra.y"
     { (yyval.expr) = make_var((yyvsp[(1) - (1)].sval)); ;}
     break;
 
   case 93:
 
 /* Line 1455 of yacc.c  */
-#line 366 "orchestra.y"
+#line 367 "orchestra.y"
     { (yyval.expr_list) = (yyvsp[(1) - (1)].expr_list); ;}
     break;
 
   case 94:
 
 /* Line 1455 of yacc.c  */
-#line 367 "orchestra.y"
+#line 368 "orchestra.y"
     { (yyval.expr_list) = NULL; ;}
     break;
 
   case 95:
 
 /* Line 1455 of yacc.c  */
-#line 371 "orchestra.y"
+#line 372 "orchestra.y"
     { (yyval.expr_list) = exprlist_append((yyvsp[(1) - (3)].expr_list), (yyvsp[(3) - (3)].expr)); ;}
     break;
 
   case 96:
 
 /* Line 1455 of yacc.c  */
-#line 372 "orchestra.y"
+#line 373 "orchestra.y"
     { (yyval.expr_list) = exprlist_append(NULL, (yyvsp[(1) - (1)].expr)); ;}
     break;
 
 
 
 /* Line 1455 of yacc.c  */
-#line 2236 "orchestra.tab.c"
+#line 2237 "orchestra.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -2444,7 +2445,7 @@ yyreturn:
 
 
 /* Line 1675 of yacc.c  */
-#line 375 "orchestra.y"
+#line 376 "orchestra.y"
 
 
 int main(int argc, char *argv[]) {
@@ -2511,6 +2512,6 @@ int main(int argc, char *argv[]) {
 }
 
 int yyerror(const char *s) {
-    fprintf(yyout ? yyout : stdout, "Syntax Error: %s\n", s);
+  fprintf(yyout ? yyout : stdout, "Syntax Error: %s at line %d\n", s, yylineno);
     return 0;
 }

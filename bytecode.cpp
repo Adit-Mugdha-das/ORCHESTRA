@@ -750,7 +750,15 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
         return stack[--sp];
     };
 
+    /* Hard guard against runaway programs (e.g., infinite loops). */
+    const uint64_t max_steps = 1000000ULL;
+    uint64_t steps = 0;
+
     while (ip < cur->code.size()) {
+        if (++steps > max_steps) {
+            vm_fail(out, "Execution limit exceeded (possible infinite loop)");
+            return false;
+        }
         const Instr ins = cur->code[ip++];
         switch (ins.op) {
             case OpCode::NOP:

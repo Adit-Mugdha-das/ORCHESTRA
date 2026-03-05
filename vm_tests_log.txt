@@ -1,0 +1,36 @@
+Built orchestra.exe (C parser/lexer + C++-compiled interpreter)
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+File error!
+[FAIL] AST rc=1
+
+VM comparison tests FAILED.

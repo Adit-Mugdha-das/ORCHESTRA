@@ -1,4 +1,5 @@
 %option noyywrap
+%option yylineno
 
 %{
 #include <stdio.h>
@@ -6,6 +7,23 @@
 #include <string.h>
 #include "orchestra.tab.h"
 #include "interpreter.h"
+
+extern FILE *yyout;
+
+static void lex_error_at(int line, const char *msg, const char *near_text) {
+    FILE *out = yyout ? yyout : stdout;
+    fprintf(out, "Lexical Error: %s at line %d", msg ? msg : "error", line);
+    if (near_text && near_text[0]) fprintf(out, " near '%s'", near_text);
+    fprintf(out, "\n");
+    fflush(out);
+
+    if (out != stderr) {
+        fprintf(stderr, "Lexical Error: %s at line %d", msg ? msg : "error", line);
+        if (near_text && near_text[0]) fprintf(stderr, " near '%s'", near_text);
+        fprintf(stderr, "\n");
+        fflush(stderr);
+    }
+}
 %}
 
 %%
@@ -65,6 +83,11 @@
 "{"         return LBRACE;
 "}"         return RBRACE;
 
+[0-9]+\.[0-9]+\.[0-9]+[0-9.]* {
+    lex_error_at(yylineno, "invalid number format", yytext);
+    exit(1);
+}
+
 [0-9]+\.[0-9]+ {
     yylval.numlit.num = atof(yytext);
     yylval.numlit.is_float = 1;
@@ -100,7 +123,8 @@
 [ \t\r\n]+   ;
 
 . {
-    printf("Invalid token: %s\n", yytext);
+    lex_error_at(yylineno, "unexpected character", yytext);
+    exit(1);
 }
 
 %%

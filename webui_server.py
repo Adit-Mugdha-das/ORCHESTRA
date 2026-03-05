@@ -14,11 +14,20 @@ HOST = os.environ.get("ORCH_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ORCH_PORT", "8000"))
 MAX_CODE_BYTES = int(os.environ.get("ORCH_MAX_CODE_BYTES", str(200_000)))
 RUN_TIMEOUT_SEC = float(os.environ.get("ORCH_RUN_TIMEOUT_SEC", "6"))
+MAX_OUT_BYTES = int(os.environ.get("ORCH_MAX_OUT_BYTES", str(200_000)))
 
 
-def _read_text(path: Path) -> str:
+def _read_text(path: Path, max_bytes: int | None = None) -> str:
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        if not max_bytes or max_bytes <= 0:
+            return path.read_text(encoding="utf-8", errors="replace")
+
+        data = path.read_bytes()
+        if len(data) <= max_bytes:
+            return data.decode("utf-8", errors="replace")
+
+        head = data[:max_bytes].decode("utf-8", errors="replace")
+        return head + "\n…(output truncated)…\n"
     except FileNotFoundError:
         return ""
 
@@ -155,9 +164,9 @@ class Handler(BaseHTTPRequestHandler):
                     200,
                     {
                         "rc": 124,
-                        "out": _read_text(out_path),
+                        "out": _read_text(out_path, MAX_OUT_BYTES),
                         "stdout": "",
-                        "stderr": "Execution timed out",
+                        "stderr": "Execution timed out (possible infinite loop)",
                         "duration_ms": int((time.perf_counter() - started) * 1000),
                     },
                 )
@@ -166,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(500, {"error": str(e)})
                 return
 
-            out_text = _read_text(out_path)
+            out_text = _read_text(out_path, MAX_OUT_BYTES)
             duration_ms = int((time.perf_counter() - started) * 1000)
 
             self._send_json(

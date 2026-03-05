@@ -923,7 +923,10 @@ static Value eval_bin_numeric(int op, Value a, Value b) {
     if (op == OP_PLUS) r = x + y;
     else if (op == OP_MINUS) r = x - y;
     else if (op == OP_MUL) r = x * y;
-    else if (op == OP_DIV) r = x / y;
+    else if (op == OP_DIV) {
+        if (y == 0.0) runtime_error("Division by zero");
+        r = x / y;
+    }
 
     if (result_is_float) return value_num(r, "float");
     return value_num((double)((long long)r), "int");
@@ -1679,7 +1682,12 @@ static ExecSignal exec_stmt(Stmt *s) {
         }
         case STMT_REPEAT: {
             g_loop_depth++;
+            long long iters = 0;
+            const long long max_iters = 100000;
             for (;;) {
+                if (++iters > max_iters) {
+                    runtime_error("Execution limit exceeded (possible infinite loop)");
+                }
                 Value c = eval_expr(s->cond);
                 if (strcmp(c.type, "bool") != 0) runtime_error("repeat condition must be bool");
                 if (!c.boolean) break;

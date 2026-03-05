@@ -76,6 +76,15 @@ function getCode() {
 function setCode(code) {
   if (state.useFallback) {
     $("fallback").value = code;
+    const gutter = $("fallbackGutter");
+    const ta = $("fallback");
+    if (gutter && ta) {
+      const lineCount = (ta.value.match(/\n/g) || []).length + 1;
+      let s = "";
+      for (let i = 1; i <= lineCount; i++) s += i + "\n";
+      gutter.textContent = s;
+      gutter.scrollTop = ta.scrollTop;
+    }
   } else {
     state.editor.setValue(code, -1);
   }
@@ -84,6 +93,21 @@ function setCode(code) {
 function initEditor() {
   const editorEl = $("editor");
   const fallbackEl = $("fallback");
+  const fallbackWrapEl = $("fallbackWrap");
+  const fallbackGutterEl = $("fallbackGutter");
+
+  function updateFallbackGutter() {
+    if (!fallbackEl || !fallbackGutterEl) return;
+    const lineCount = (fallbackEl.value.match(/\n/g) || []).length + 1;
+    let s = "";
+    for (let i = 1; i <= lineCount; i++) s += i + "\n";
+    fallbackGutterEl.textContent = s;
+  }
+
+  function syncFallbackScroll() {
+    if (!fallbackEl || !fallbackGutterEl) return;
+    fallbackGutterEl.scrollTop = fallbackEl.scrollTop;
+  }
 
   try {
     if (!window.ace) throw new Error("Ace not loaded");
@@ -99,11 +123,15 @@ function initEditor() {
       wrap: true,
       highlightActiveLine: true,
       showGutter: true,
+      showLineNumbers: true,
+      displayIndentGuides: true,
     });
+
+    ed.renderer.setShowGutter(true);
 
     state.editor = ed;
     state.useFallback = false;
-    fallbackEl.style.display = "none";
+    if (fallbackWrapEl) fallbackWrapEl.style.display = "none";
     editorEl.style.display = "block";
     setCode(DEFAULT_CODE);
     return;
@@ -111,8 +139,12 @@ function initEditor() {
     // Fallback for offline/no CDN.
     state.useFallback = true;
     editorEl.style.display = "none";
-    fallbackEl.style.display = "block";
+    if (fallbackWrapEl) fallbackWrapEl.style.display = "grid";
     fallbackEl.value = DEFAULT_CODE;
+    updateFallbackGutter();
+    syncFallbackScroll();
+    fallbackEl.addEventListener("input", updateFallbackGutter);
+    fallbackEl.addEventListener("scroll", syncFallbackScroll);
     return;
   }
 }

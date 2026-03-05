@@ -5,6 +5,7 @@
 
 extern FILE *yyin;
 extern FILE *yyout;
+extern int yylineno;
 
 int yylex();
 int yyerror(const char *s);
@@ -438,6 +439,6 @@ int main(int argc, char *argv[]) {
 }
 
 int yyerror(const char *s) {
-    fprintf(yyout ? yyout : stdout, "Syntax Error: %s\n", s);
+  fprintf(yyout ? yyout : stdout, "Syntax Error: %s at line %d\n", s, yylineno);
     return 0;
 }
