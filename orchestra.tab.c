@@ -2457,6 +2457,7 @@ int main(int argc, char *argv[]) {
       orchestra.exe input.txt output.txt [--backend=ast|vm]
       orchestra.exe input.txt output.txt --emit=cpp
       orchestra.exe input.txt output.txt --emit cpp
+      orchestra.exe input.txt output.txt --emit=bytecode
       orchestra.exe input.txt output.txt --emit=cpp --emit-style=cpp|pseudo
   */
   for (int i = 3; i < argc; i++) {
@@ -2464,6 +2465,7 @@ int main(int argc, char *argv[]) {
     else if (strcmp(argv[i], "--backend=ast") == 0) backend = "ast";
     else if (strcmp(argv[i], "--backend") == 0 && i + 1 < argc) backend = argv[++i];
     else if (strcmp(argv[i], "--emit=cpp") == 0) emit = "cpp";
+    else if (strcmp(argv[i], "--emit=bytecode") == 0) emit = "bytecode";
     else if (strcmp(argv[i], "--emit") == 0 && i + 1 < argc) emit = argv[++i];
     else if (strcmp(argv[i], "--emit-style=cpp") == 0) emit_style = "cpp";
     else if (strcmp(argv[i], "--emit-style=pseudo") == 0) emit_style = "pseudo";
@@ -2471,7 +2473,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (argc < 3) {
-    printf("Usage: %s input.txt output.txt [--backend=ast|vm] [--emit=cpp] [--emit-style=cpp|pseudo]\n", argv[0]);
+    printf("Usage: %s input.txt output.txt [--backend=ast|vm] [--emit=cpp|bytecode] [--emit-style=cpp|pseudo]\n", argv[0]);
     return 1;
   }
 
@@ -2494,6 +2496,9 @@ int main(int argc, char *argv[]) {
         OrchCppEmitStyle style = ORCH_CPP_STYLE_CPP;
         if (emit_style && strcmp(emit_style, "pseudo") == 0) style = ORCH_CPP_STYLE_PSEUDO;
         dump_cpp_program_with_style(g_main_block, yyout, style);
+      } else if (emit && strcmp(emit, "bytecode") == 0) {
+        extern int dump_bytecode_vm(struct Stmt *root, FILE *out);
+        dump_bytecode_vm(g_main_block, yyout);
       } else if (strcmp(backend, "vm") == 0) {
         extern int execute_program_vm(struct Stmt *root, FILE *out);
         execute_program_vm(g_main_block, yyout);

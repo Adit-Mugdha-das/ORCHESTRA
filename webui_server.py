@@ -116,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         action = payload.get("action", "run")
-        if action not in ("run", "emit_cpp"):
+        if action not in ("run", "emit_cpp", "emit_bytecode"):
             action = "run"
 
         code = payload.get("code", "")
@@ -145,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
 
             if action == "emit_cpp":
                 cmd = [str(ORCH_EXE), str(in_path), str(out_path), "--emit=cpp", f"--emit-style={emit_style}"]
+            elif action == "emit_bytecode":
+                cmd = [str(ORCH_EXE), str(in_path), str(out_path), "--emit=bytecode", "--backend", "vm"]
             else:
                 cmd = [str(ORCH_EXE), str(in_path), str(out_path), "--backend", backend]
 

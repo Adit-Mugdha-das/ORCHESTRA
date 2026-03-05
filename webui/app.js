@@ -18,10 +18,11 @@ const DEFAULT_CODE = `flow main take() {
 const state = {
   editor: null,
   useFallback: false,
-  activeView: "run", // 'run' | 'cpp'
+  activeView: "run", // 'run' | 'cpp' | 'bytecode'
   lastRunView: null,
   lastCppView: null,
   lastCppStyle: null,
+  lastBytecodeView: null,
 };
 
 function $(id) {
@@ -55,6 +56,12 @@ function setShowCppButtonState() {
   showBtn.textContent = state.activeView === "cpp" ? "Hide C++" : "Show C++";
 }
 
+function setShowBytecodeButtonState() {
+  const btn = $("showBytecode");
+  if (!btn) return;
+  btn.textContent = state.activeView === "bytecode" ? "Hide Bytecode" : "Show Bytecode";
+}
+
 function getEmitStyle() {
   const sel = $("emitStyle");
   const v = sel ? sel.value : "cpp";
@@ -66,6 +73,12 @@ async function refreshCppIfVisible() {
   // Force refresh without toggling off.
   state.lastCppView = null;
   await emitCppAndShow();
+}
+
+async function refreshBytecodeIfVisible() {
+  if (state.activeView !== "bytecode") return;
+  state.lastBytecodeView = null;
+  await emitBytecodeAndShow();
 }
 
 function getCode() {
@@ -152,8 +165,10 @@ function initEditor() {
 async function runCode() {
   const runBtn = $("run");
   const showBtn = $("showCpp");
+  const bcBtn = $("showBytecode");
   runBtn.disabled = true;
   if (showBtn) showBtn.disabled = true;
+  if (bcBtn) bcBtn.disabled = true;
 
   // Only clear the visible panel; keep cached views for toggling.
   $("out").textContent = "";
@@ -204,6 +219,7 @@ async function runCode() {
   } finally {
     runBtn.disabled = false;
     if (showBtn) showBtn.disabled = false;
+    if (bcBtn) bcBtn.disabled = false;
   }
 }
 
@@ -215,13 +231,91 @@ async function showCpp() {
     state.activeView = "run";
     applyView(state.lastRunView);
     setShowCppButtonState();
+    setShowBytecodeButtonState();
     return;
   }
 
   state.activeView = "cpp";
   setShowCppButtonState();
+  setShowBytecodeButtonState();
 
   await emitCppAndShow();
+}
+
+async function showBytecode() {
+  if (state.activeView === "bytecode") {
+    state.activeView = "run";
+    applyView(state.lastRunView);
+    setShowCppButtonState();
+    setShowBytecodeButtonState();
+    return;
+  }
+
+  state.activeView = "bytecode";
+  setShowCppButtonState();
+  setShowBytecodeButtonState();
+
+  await emitBytecodeAndShow();
+}
+
+async function emitBytecodeAndShow() {
+  if (state.lastBytecodeView) {
+    applyView(state.lastBytecodeView);
+    return;
+  }
+
+  const runBtn = $("run");
+  const showBtn = $("showCpp");
+  const bcBtn = $("showBytecode");
+  if (bcBtn) bcBtn.disabled = true;
+  if (showBtn) showBtn.disabled = true;
+  if (runBtn) runBtn.disabled = true;
+
+  $("out").textContent = "";
+  $("err").textContent = "";
+  $("rc").textContent = "rc: —";
+  $("time").textContent = "— ms";
+
+  const code = getCode();
+
+  setStatus("Emitting Bytecode…");
+  const started = performance.now();
+
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, action: "emit_bytecode", backend: "vm" }),
+    });
+
+    const data = await resp.json();
+    const elapsed = Math.round(performance.now() - started);
+    const timeMs = data.duration_ms ?? elapsed;
+
+    const errText = (data.error ? data.error + "\n" : "") + (data.stderr || "");
+    const outText = data.out || "";
+    const looksLikeBytecode = outText.trimStart().startsWith("== Bytecode (VM) ==");
+
+    const view = {
+      rc: data.rc,
+      timeMs,
+      outText: outText || "(no output)",
+      errText: looksLikeBytecode
+        ? (errText || (data.rc === 0 ? "" : "(error)"))
+        : ((errText ? errText + "\n" : "") + "Bytecode view not available from the running server. Stop the WebUI (Ctrl+C) and re-run run_webui.bat, then refresh the page."),
+      statusText: data.rc === 0 ? "Done" : "Done (with errors)",
+    };
+
+    state.lastBytecodeView = view;
+    if (state.activeView === "bytecode") applyView(view);
+  } catch (e) {
+    $("err").textContent = String(e);
+    setStatus("Failed");
+  } finally {
+    if (bcBtn) bcBtn.disabled = false;
+    if (showBtn) showBtn.disabled = false;
+    if (runBtn) runBtn.disabled = false;
+  }
 }
 
 async function emitCppAndShow() {
@@ -287,7 +381,10 @@ window.addEventListener("DOMContentLoaded", () => {
   $("run").addEventListener("click", runCode);
   const showBtn = $("showCpp");
   if (showBtn) showBtn.addEventListener("click", showCpp);
+  const bcBtn = $("showBytecode");
+  if (bcBtn) bcBtn.addEventListener("click", showBytecode);
   const styleSel = $("emitStyle");
   if (styleSel) styleSel.addEventListener("change", refreshCppIfVisible);
   setShowCppButtonState();
+  setShowBytecodeButtonState();
 });

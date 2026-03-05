@@ -1,0 +1,23 @@
+== Bytecode (VM) ==
+
+-- const_num (0) --
+
+-- const_str (0) --
+
+-- functions (2) --
+
+[func 0] (entry)
+0: SCOPE_PUSH 0 0
+1: PUSH_INT 1 0
+2: EMIT 0 0
+3: SCOPE_POP 0 0
+4: PUSH_INT 0 0
+5: RET 0 0
+
+[func 1]
+0: SCOPE_PUSH 0 0
+1: PUSH_INT 1 0
+2: EMIT 0 0
+3: SCOPE_POP 0 0
+4: PUSH_INT 0 0
+5: RET 0 0

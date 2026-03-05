@@ -676,3 +676,63 @@ extern "C" int execute_program_vm(Stmt* root, FILE* out) {
     const bool ok = vm_execute(out, prog, entry);
     return ok ? 0 : 1;
 }
+
+extern "C" int dump_bytecode_vm(Stmt* root, FILE* out) {
+    if (!out) out = stdout;
+    g_compile_out = out;
+
+    g_prog = nullptr;
+    g_func_index.clear();
+    g_func_compiling.clear();
+    g_loops.clear();
+    g_scope_depth = 0;
+
+    if (!root) {
+        std::fprintf(out, "VM backend: no entry block\n");
+        return 1;
+    }
+
+    BytecodeProgram prog;
+    g_prog = &prog;
+
+    prog.functions.emplace_back();
+    BytecodeFunc& entry = prog.functions.back();
+
+    precompile_all_flows();
+
+    compile_stmt(prog, entry, root);
+    entry.emit(OpCode::PUSH_INT, 0);
+    entry.emit(OpCode::RET);
+
+    std::fprintf(out, "== Bytecode (VM) ==\n");
+    std::fprintf(out, "\n-- const_num (%zu) --\n", prog.const_num.size());
+    for (size_t i = 0; i < prog.const_num.size(); i++) {
+        std::fprintf(out, "%zu: %.17g\n", i, prog.const_num[i]);
+    }
+
+    std::fprintf(out, "\n-- const_str (%zu) --\n", prog.const_str.size());
+    for (size_t i = 0; i < prog.const_str.size(); i++) {
+        std::fprintf(out, "%zu: \"%s\"\n", i, prog.const_str[i].c_str());
+    }
+
+    std::fprintf(out, "\n-- functions (%zu) --\n", prog.functions.size());
+    for (size_t fi = 0; fi < prog.functions.size(); fi++) {
+        const BytecodeFunc& fn = prog.functions[fi];
+        std::fprintf(out, "\n[func %zu]%s\n", fi, (&fn == &entry) ? " (entry)" : "");
+
+        if (!fn.param_name_ids.empty()) {
+            std::fprintf(out, "params:");
+            for (size_t pi = 0; pi < fn.param_name_ids.size(); pi++) {
+                const int sid = fn.param_name_ids[pi];
+                const char* pname = (sid >= 0 && (size_t)sid < prog.const_str.size()) ? prog.const_str[(size_t)sid].c_str() : "?";
+                std::fprintf(out, " %s", pname);
+            }
+            std::fprintf(out, "\n");
+        }
+
+        dump_bytecode_func(fn, out);
+    }
+
+    std::fflush(out);
+    return 0;
+}
