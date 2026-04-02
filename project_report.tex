@@ -1,0 +1,638 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\usepackage{float}
+\usepackage{needspace}
+
+\setstretch{1.12}
+\setlength{\parskip}{0.55em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.15}
+\normalsize
+
+\makeatletter
+\renewenvironment{abstract}{%
+  \section*{Abstract}
+  \normalsize
+}{%
+  \par
+}
+\makeatother
+
+\lstdefinestyle{orchestra}{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  backgroundcolor=\color{black!2}
+}
+
+\newcommand{\diagramplaceholder}[1]{%
+  \fbox{%
+    \begin{minipage}[c][5.5cm][c]{0.88\textwidth}
+      \centering
+      \textit{#1}
+    \end{minipage}%
+  }%
+}
+
+\newcommand{\architecturefigure}{%
+  \IfFileExists{architecture.png}{%
+    \makebox[\textwidth][c]{\includegraphics[width=1.18\textwidth,height=0.98\textheight,keepaspectratio]{architecture.png}}%
+  }{%
+    \IfFileExists{architecture.jpg}{%
+      \makebox[\textwidth][c]{\includegraphics[width=1.18\textwidth,height=0.98\textheight,keepaspectratio]{architecture.jpg}}%
+    }{%
+      \IfFileExists{architecture.jpeg}{%
+        \makebox[\textwidth][c]{\includegraphics[width=1.18\textwidth,height=0.98\textheight,keepaspectratio]{architecture.jpeg}}%
+      }{%
+        \diagramplaceholder{Add system architecture image here\\Suggested file name: \texttt{architecture.png}}%
+      }%
+    }%
+  }%
+}
+
+\newcommand{\executionflowfigure}{%
+  \IfFileExists{execution_flow.png}{%
+    \includegraphics[width=0.9\textwidth]{execution_flow.png}%
+  }{%
+    \IfFileExists{execution_flow.jpg}{%
+      \includegraphics[width=0.9\textwidth]{execution_flow.jpg}%
+    }{%
+      \IfFileExists{code_execution_flow.png}{%
+        \includegraphics[width=0.9\textwidth]{code_execution_flow.png}%
+      }{%
+        \IfFileExists{code_execution_flow.jpg}{%
+          \includegraphics[width=0.9\textwidth]{code_execution_flow.jpg}%
+        }{%
+          \diagramplaceholder{Add code execution flow diagram here\\Suggested file name: \texttt{execution\_flow.png}}%
+        }%
+      }%
+    }%
+  }%
+}
+
+\newcommand{\webuifigure}{%
+  \IfFileExists{webui_demo.png}{%
+    \includegraphics[width=0.9\textwidth]{webui_demo.png}%
+  }{%
+    \IfFileExists{webui_demo.jpg}{%
+      \includegraphics[width=0.9\textwidth]{webui_demo.jpg}%
+    }{%
+      \diagramplaceholder{Add Web UI screenshot here\\Suggested file name: \texttt{webui\_demo.png}}%
+    }%
+  }%
+}
+
+\title{ORCHESTRA: A Modular Multi-Backend Compiler for Flexible Execution and Code Generation}
+\author{
+  Course Title: \textit{Compiler Design Laboratory} \\
+  Course Code: \textit{CSE 3212}
+}
+\date{April 6, 2026}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.8cm}
+
+{\Large \textbf{Compiler Project Report Submission} \par}
+\vspace{1.6cm}
+
+{\LARGE \textbf{ORCHESTRA: A Modular Multi-Backend Compiler for Flexible Execution and Code Generation} \par}
+\vspace{2.2cm}
+
+{\large
+\begin{tabular}{>{\bfseries}l l}
+Subject: & Compiler Project Report Submission \\
+Course Title: & Compiler Design Laboratory \\
+Course Code: & CSE 3212 \\
+Submission Date: & April 6, 2026 \\
+\end{tabular}
+\par}
+
+\vfill
+{\large Department of Computer Science and Engineering \par}
+\vspace{0.3cm}
+{\large Khulna Univercity of Engineering and Technology \par}
+\end{titlepage}
+
+\begin{abstract}
+ORCHESTRA is a custom programming language built to demonstrate a complete compiler pipeline in a small and practical form. The project uses Flex for lexical analysis and Bison for parsing, then builds a shared abstract syntax tree that supports three outputs: direct execution through an AST interpreter, execution through a stack-based virtual machine, and an equivalent C++ view for debugging and presentation.
+
+The project highlights the full flow from source code to execution while also showing backend equivalence, clean language design, and extensibility. Although compact, ORCHESTRA supports functions, variables, control flow, formatted output, collections, object-oriented constructs, and a lightweight pointer model. The result is a compiler project that is easy to explain, easy to demo, and broad enough to show the full potential of the system.
+\end{abstract}
+
+\section{Introduction}
+
+ORCHESTRA was developed to show how a programming language can be designed, parsed, and executed through multiple backends within one project. The aim was not only to create a custom language, but also to build a system that clearly demonstrates how compiler components work together in practice.
+
+The main goals of the project are straightforward: design a readable language, implement a complete frontend using Flex and Bison, build a shared AST, and run the same program through three different execution paths. These three paths are the AST interpreter, the VM backend, and the C++ emitter used for presentation and debugging.
+
+The scope of the project is summarized by the following pipeline:
+
+\begin{center}
+\texttt{Source Code $\rightarrow$ Tokens $\rightarrow$ AST $\rightarrow$ AST Interpreter / VM Backend / C++ Emitter}
+\end{center}
+
+This report is kept intentionally short. It focuses on what the project does, how it is structured, and which language features make it useful as a compiler project.
+
+\section{Language Design --- ORCHESTRA}
+
+ORCHESTRA is presented here in the same formal style as the initial proposal: short categories, compact tables, and direct examples. The final language keeps the original identity of the proposal, but now includes the full implemented feature set.
+
+\Needspace{12\baselineskip}
+\subsection*{Keywords and Their C Equivalents}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textnormal{ORCHESTRA Keyword} & \textnormal{Meaning} & \textnormal{C Equivalent} & \textnormal{Example} \\
+\midrule
+\texttt{flow} & Function definition & function & \texttt{flow add \{\}} \\
+\texttt{take} & Function parameters & parameters & \texttt{take x, y} \\
+\texttt{emit} & Output with newline & printf / return value output & \texttt{emit sum} \\
+\texttt{note} & Variable declaration & variable & \texttt{note x = 5} \\
+\texttt{fixed} & Constant declaration & const & \texttt{fixed PI = 3.14} \\
+\texttt{stage} & Assignment step & assignment & \texttt{stage s = x + y} \\
+\texttt{ensemble} & Structured data & struct & \texttt{ensemble Point \{\}} \\
+\texttt{play} & Output without forced newline & printf & \texttt{play x} \\
+\texttt{branch} & Conditional statement & if & \texttt{branch (x == 0)} \\
+\texttt{elsewise} & Else block & else & \texttt{elsewise \{\}} \\
+\texttt{repeat} & Loop & while & \texttt{repeat (i < n)} \\
+\texttt{score} & For-loop construct & for & \texttt{score (...)} \\
+\texttt{symphony} & Class-like declaration & class & \texttt{symphony Child extends Parent \{\}} \\
+\texttt{this} & Current object context & this & \texttt{this.value} \\
+\texttt{super} & Parent access & base / super & \texttt{super.init()} \\
+\texttt{stagethru} & Pointer write-through & \texttt{*p = value} & \texttt{stagethru p = 10} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\Needspace{10\baselineskip}
+\subsection*{Data Types Supported}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textnormal{ORCHESTRA Type} & \textnormal{Description} & \textnormal{Example} \\
+\midrule
+\texttt{int} & Integer numbers & \texttt{10} \\
+\texttt{float} & Decimal numbers & \texttt{3.14} \\
+\texttt{bool} & Boolean values & \texttt{true}, \texttt{false} \\
+\texttt{string} & Text data & \texttt{"hello"} \\
+\texttt{array} & Indexed collection & \texttt{[1, 2, 3]} \\
+\texttt{map} & Key-value collection & \texttt{map()} \\
+\texttt{set} & Membership collection & \texttt{set()} \\
+\texttt{pointer} & Reference to a named variable & \texttt{\&x} \\
+\texttt{instance} & Object of an ensemble or symphony type & \texttt{Point(1, 2)} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Strings support escape sequences such as \texttt{\textbackslash n}, \texttt{\textbackslash t}, \texttt{\textbackslash\textbackslash}, and \texttt{\textbackslash"}. Numeric literals support both standard decimal form and scientific notation such as \texttt{1e9} and \texttt{2.5e-3}.
+
+\Needspace{11\baselineskip}
+\subsection*{Operators}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textnormal{Operator} & \textnormal{Purpose} & \textnormal{C Equivalent} & \textnormal{Example} \\
+\midrule
+\texttt{+} & Addition & \texttt{+} & \texttt{a + b} \\
+\texttt{-} & Subtraction & \texttt{-} & \texttt{a - b} \\
+\texttt{*} & Multiplication & \texttt{*} & \texttt{a * b} \\
+\texttt{/} & Division & \texttt{/} & \texttt{a / b} \\
+\texttt{==} & Equality & \texttt{==} & \texttt{x == y} \\
+\texttt{<, <=} & Less-than comparison & \texttt{<, <=} & \texttt{x < y} \\
+\texttt{>, >=} & Greater-than comparison & \texttt{>, >=} & \texttt{x > y} \\
+\texttt{\&\&} & Logical AND & \texttt{\&\&} & \texttt{a \&\& b} \\
+\texttt{||} & Logical OR & \texttt{||} & \texttt{a || b} \\
+\texttt{!} & Logical NOT & \texttt{!} & \texttt{!flag} \\
+\texttt{\&x} & Address-of & reference / address-of & \texttt{\&x} \\
+\texttt{deref(p)} & Dereference & \texttt{*p} & \texttt{deref(p)} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The language also supports \textbf{comparison chaining}, allowing expressions such as \texttt{1 < 2 < 3} and \texttt{a == b != c} to be evaluated as true logical chains.
+
+\Needspace{8\baselineskip}
+\subsection*{Control Structures}
+
+\textbf{Conditional Statement}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{0.88\textwidth}{l X}
+\toprule
+\textnormal{Feature} & \textnormal{Description} \\
+\midrule
+\texttt{branch} & Conditional execution \\
+\texttt{elsewise} & Alternative execution path \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Looping Structure}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{0.88\textwidth}{l X}
+\toprule
+\textnormal{Feature} & \textnormal{Description} \\
+\midrule
+\texttt{repeat} & Iterative loop structure \\
+\texttt{score} & For-style loop with init, condition, and step \\
+\texttt{break} & Exit current loop \\
+\texttt{continue} & Move to next iteration \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The \texttt{score} loop supports optional initialization and step expressions. If the condition is omitted, the loop runs until terminated with \texttt{break}. A \texttt{continue} statement transfers control to the step expression before the next iteration.
+
+\Needspace{10\baselineskip}
+\subsection*{Functions (Flows)}
+
+Functions in ORCHESTRA are called \texttt{flows}. A flow consists of:
+
+\begin{itemize}
+\item input parameters
+\item a sequence of computation stages
+\item an optional return value
+\end{itemize}
+
+\begin{lstlisting}[style=orchestra]
+flow add take(a, b) {
+  return a + b;
+}
+\end{lstlisting}
+
+At program level, the language supports top-level flows and uses \texttt{main} as the normal entry point when present. The \texttt{take(...)} parameter part may also be omitted for flows with no parameters.
+
+\Needspace{9\baselineskip}
+\subsection*{Variables, Output, and Assignment}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Construct} & \textnormal{Purpose} \\
+\midrule
+\texttt{note x = expr;} & Mutable variable declaration \\
+\texttt{fixed x = expr;} & Immutable constant declaration \\
+\texttt{stage x = expr;} & Reassignment of existing variable \\
+\texttt{emit expr;} & Output followed by newline \\
+\texttt{play expr;} & Output without automatic newline \\
+\texttt{play fmt, args...;} & Formatted output \\
+\texttt{return expr;} & Return from a flow \\
+\texttt{return;} & Empty return \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Formatted output through \texttt{play} supports \texttt{\%d}, \texttt{\%f}, \texttt{\%s}, and \texttt{\%b}. Constants declared with \texttt{fixed} cannot be reassigned later.
+
+\Needspace{9\baselineskip}
+\subsection*{Collection Features}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Feature} & \textnormal{Description} \\
+\midrule
+\texttt{[a, b, c]} & Array literal \\
+\texttt{target[index]} & Indexing for arrays, maps, and sets \\
+\texttt{stage arr[i] = x;} & Indexed assignment \\
+\texttt{array(n)} & Create array of size \texttt{n} \\
+\texttt{push}, \texttt{pop}, \texttt{resize} & Built-in array operations \\
+\texttt{map()}, \texttt{get}, \texttt{put} & Map construction and update helpers \\
+\texttt{set()}, \texttt{add}, \texttt{has}, \texttt{del}, \texttt{keys} & Set and shared collection helpers \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Indexing behavior depends on the target collection: arrays return the element at a position, maps return the value for a key, and sets return a boolean membership result. Map and set keys follow a string-key model.
+
+\Needspace{9\baselineskip}
+\subsection*{Object-Oriented Features}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Feature} & \textnormal{Description} \\
+\midrule
+\texttt{ensemble} & Struct-like type with fields \\
+\texttt{symphony} & Class-like type with fields and methods \\
+\texttt{extends} & Inheritance support \\
+\texttt{this} & Current instance reference \\
+\texttt{super} & Parent constructor or method access \\
+\texttt{obj.field} / \texttt{obj.method()} & Field access and method calls \\
+\texttt{stage obj.field = expr;} & Field assignment \\
+\texttt{TypeName(...)} & Constructor-like instance creation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Inheritance is supported through \texttt{extends}. A \texttt{symphony} may use \texttt{super(args)} for constructor chaining and \texttt{super.method(args)} for parent method access. If a type defines \texttt{init}, it acts as a user-defined constructor.
+
+\Needspace{8\baselineskip}
+\subsection*{Pointer Features}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Feature} & \textnormal{Description} \\
+\midrule
+\texttt{\&x} & Create a pointer to variable \texttt{x} \\
+\texttt{deref(p)} & Read the value referenced by pointer \texttt{p} \\
+\texttt{stagethru p = expr;} & Update the variable referenced by pointer \texttt{p} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Pointers can be used directly in expressions, for example \texttt{deref(p) + 3}. The pointer model works with int, float, bool, and string values.
+
+\Needspace{8\baselineskip}
+\subsection*{Additional Language Features}
+
+\begin{itemize}
+\item single-line and multiline comments
+\item scientific notation such as \texttt{1e9} and \texttt{2.5e-3}
+\item multiline comments using \texttt{/* ... */}
+\item lexical scoping and shadowing through nested blocks
+\item formatted output using \texttt{play}
+\item recursion through flow calls, with runtime recursion-limit checks
+\item equivalent execution behavior across AST and VM backends
+\end{itemize}
+
+\section{System Architecture}
+
+The ORCHESTRA compiler follows a shared-frontend, multi-backend design. Source code is first processed by the lexer and parser to produce a single abstract syntax tree. That AST is then reused by three different paths: direct execution through the AST interpreter, compilation into bytecode for the VM backend, and translation into an equivalent C++ representation for visualization.
+
+This architecture keeps the frontend common while allowing multiple execution strategies to coexist in the same project. It also makes feature testing easier because the AST backend serves as the reference model and the VM backend can be validated against it.
+
+\begin{figure}[H]
+\centering
+\architecturefigure
+\caption{System architecture of the ORCHESTRA compiler.}
+\end{figure}
+
+\section{Code Execution Flow}
+
+The execution path of a program begins with source input and ends in one of three outputs. The lexer identifies tokens, the parser builds the AST, and the selected backend determines the final execution behavior. In AST mode, the tree is interpreted directly. In VM mode, the AST is converted into bytecode and executed by the virtual machine. In emit mode, the AST is translated into equivalent C++-style code for presentation and debugging.
+
+This flow shows how one frontend can support multiple backend targets without changing the user-facing language.
+
+\begin{figure}[H]
+\centering
+\executionflowfigure
+\caption{Code execution flow in the ORCHESTRA compiler.}
+\end{figure}
+
+\section{Implementation}
+
+The implementation is divided across a small set of core files, each with a clearly defined role in the compiler pipeline.
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{File} & \textnormal{Role} \\
+\midrule
+\texttt{orchestra.l} & Lexer specification used for token generation. \\
+\texttt{orchestra.y} & Parser grammar used to build the AST and drive compilation modes. \\
+\texttt{interpreter.h} & Shared declarations for AST nodes, values, and runtime structures. \\
+\texttt{interpreter.c} & AST interpreter implementation and core runtime behavior. \\
+\texttt{symbol\_table.h / symbol\_table.cpp} & Scope and symbol management for variables and declarations. \\
+\texttt{vm\_backend.cpp} & AST-to-bytecode compilation for the VM backend. \\
+\texttt{bytecode.h / bytecode.cpp} & Bytecode definitions, VM values, and bytecode execution engine. \\
+\texttt{cpp\_printer.h / cpp\_printer.cpp} & Equivalent C++ generation for emit mode. \\
+\texttt{flow\_registry.h / flow\_registry.cpp} & Registration and lookup of defined flows. \\
+\texttt{webui\_server.py} & Python server that connects the browser UI to \texttt{orchestra.exe}. \\
+\texttt{webui/index.html, app.js, styles.css} & Browser-based playground interface for running and viewing programs. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Error Handling}
+
+The compiler includes error checks across lexical analysis, parsing, semantic validation, runtime execution, and VM execution. The goal is to detect errors at the earliest possible stage and report them in a clear form.
+
+\subsection*{Lexical Errors}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textnormal{Error Type} & \textnormal{Example} & \textnormal{Handling} \\
+\midrule
+Invalid character / unknown token & \texttt{emit x @ y;} & Reports an unexpected character with line information. \\
+Unterminated string literal & \texttt{note msg = "hello;} & Reports an unterminated string literal when closing quote is missing. \\
+Invalid number format & \texttt{emit 12.3.4;} & Rejects malformed numeric literals during lexing. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Syntax Errors}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textnormal{Error Type} & \textnormal{Example} & \textnormal{Handling} \\
+\midrule
+Missing semicolon & \texttt{note a = 5} & Parser reports a syntax error near the next unexpected token. \\
+Malformed construct & \texttt{branch (x > 5 \{} & Parser reports invalid structure such as missing delimiters or parentheses. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Semantic Errors}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textnormal{Error Type} & \textnormal{Example} & \textnormal{Handling} \\
+\midrule
+Undefined variable & \texttt{emit x;} & Reports use of a variable before declaration. \\
+Redeclaration in same scope & \texttt{note x = 1; note x = 2;} & Reports variable redeclaration in the same scope. \\
+Invalid assignment target & \texttt{stage (a + b) = 3;} & Rejects non-assignable expressions as assignment targets. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Runtime and Function Call Errors}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textnormal{Error Type} & \textnormal{Example} & \textnormal{Handling} \\
+\midrule
+Division by zero & \texttt{emit a / 0;} & Reports runtime division by zero. \\
+Recursion limit exceeded & Deep recursive calls & Stops execution when recursion exceeds the configured limit. \\
+Invalid condition type & \texttt{branch("hi") \{\}} & Requires the condition to be boolean or follow truthiness rules. \\
+Calling undefined flow & Undefined function call & Reports unknown flow at runtime. \\
+Wrong number of arguments & Incorrect call arity & Reports incorrect argument count. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{VM / Backend Errors}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Error Type} & \textnormal{Handling} \\
+\midrule
+Stack underflow / overflow & VM checks stack bounds before push and pop operations. \\
+Invalid jump target & VM validates jump addresses during execution. \\
+Backend mismatch & AST backend is treated as reference and compared against VM output during equivalence testing. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Testing \& Validation}
+
+The project includes both single-backend testing and backend-equivalence testing. The test setup is organized through batch scripts so that the compiler can be validated quickly during development and demonstration.
+
+\subsection*{Test Suite Organization}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Script} & \textnormal{Purpose} \\
+\midrule
+\texttt{run\_tests.bat} & Runs the AST-oriented test suite. \\
+\texttt{run\_vm\_tests.bat} & Runs AST and VM backends and compares their outputs. \\
+\texttt{run\_emit\_cpp\_tests.bat} & Supports manual validation of the C++ emit output. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Equivalence Testing Strategy}
+
+The AST interpreter is treated as the reference backend. For VM validation, the same source program is executed in both AST mode and VM mode, and the produced outputs are compared using the Windows \texttt{fc} command. This makes it possible to detect backend mismatches quickly and confirm that the VM preserves the intended language semantics.
+
+\subsection*{Test Categories}
+
+\begin{itemize}
+\item expressions and arithmetic evaluation
+\item control flow and loop behavior
+\item recursion
+\item collections: arrays, maps, and sets
+\item object-oriented features and inheritance
+\item pointer operations
+\item lexical scoping and shadowing
+\end{itemize}
+
+\subsection*{Results Summary}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l c X}
+\toprule
+\textnormal{Category} & \textnormal{Status} & \textnormal{Remarks} \\
+\midrule
+Expressions & Pass & Arithmetic, logical operations, and chaining validated. \\
+Control Flow & Pass & Branching, repeat, score, break, and continue validated. \\
+Recursion & Pass & Recursive flow execution validated with runtime checks. \\
+Collections & Pass & Arrays, maps, sets, indexing, and helpers validated. \\
+OOP Features & Pass & Fields, methods, inheritance, \texttt{this}, and \texttt{super} validated. \\
+Pointers & Pass & Address-of, dereference, and write-through behavior validated. \\
+Shadowing & Pass & Nested lexical scope behavior validated. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Web UI Playground}
+
+The project also includes a local Web UI for interactive demonstration. This makes the compiler easier to present because source code can be entered in the browser and executed using the same backend logic as the command-line version.
+
+\subsection*{Execution Model}
+
+The Web UI does not implement a separate compiler. Instead, it acts as a wrapper around the existing executable, which ensures consistency between the browser demo and the command-line system.
+
+\begin{figure}[H]
+\centering
+\webuifigure
+\caption{Web UI playground for the ORCHESTRA compiler.}
+\end{figure}
+
+\section{Results \& Demo}
+
+The project was demonstrated through sample programs covering the major language features. Each category was executed through the implemented backend pipeline, and the observed outputs matched the expected behavior.
+
+\subsection*{Sample Program Categories}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textnormal{Category} & \textnormal{Sample Demonstration} & \textnormal{Observed Result} \\
+\midrule
+Expressions & arithmetic, logical operations, chaining & Correct evaluation and output \\
+Control Flow & branch, elsewise, repeat, score & Correct branching and loop execution \\
+Recursion & recursive flows & Correct recursive behavior with runtime limit checks \\
+Collections & arrays, maps, sets, indexing & Correct storage, retrieval, and helper operations \\
+OOP Features & methods, fields, inheritance, \texttt{this}, \texttt{super} & Correct object and inheritance behavior \\
+Pointers & \texttt{\&x}, \texttt{deref(p)}, \texttt{stagethru} & Correct indirect read and write behavior \\
+Shadowing & nested lexical scope examples & Correct local scope resolution \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Build and Run Summary}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textnormal{Action} & \textnormal{Command / Script} \\
+\midrule
+Build compiler & \texttt{build\_cpp.bat} \\
+Run AST backend & \texttt{orchestra.exe input.txt output.txt} \\
+Run VM backend & \texttt{orchestra.exe input.txt output.txt --backend=vm} \\
+Run test suite & \texttt{run\_tests.bat} \\
+Run AST vs VM equivalence tests & \texttt{run\_vm\_tests.bat} \\
+Show Equivalent C++ & \texttt{orchestra.exe input.txt output.txt --emit=cpp} \\
+Run Web UI & \texttt{run\_webui.bat} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+These demonstrations show that the same source language can be parsed once and then executed or emitted through multiple backend paths while preserving consistent semantics.
+
+\section{Conclusion}
+
+The ORCHESTRA project demonstrates a complete compiler workflow in a compact but feature-rich system. It combines a Flex/Bison frontend, a reference AST interpreter, a stack-based virtual machine, and a C++ emit mode within a single architecture. The language itself supports core programming constructs together with collections, object-oriented features, pointers, scientific notation, multiline comments, comparison chaining, recursion, and scoped execution.
+
+The project is strengthened by backend equivalence testing, structured error handling, and a browser-based playground for demonstration. As a result, ORCHESTRA is not only a working custom language, but also a clear and practical example of compiler design and implementation.
+
+\end{document}

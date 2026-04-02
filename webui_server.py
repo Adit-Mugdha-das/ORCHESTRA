@@ -196,7 +196,13 @@ def main() -> None:
     if not WEBUI_DIR.exists():
         raise SystemExit("Missing webui/ directory")
 
-    httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    try:
+        httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError as exc:
+        raise SystemExit(
+            f"Failed to start ORCHESTRA Web UI on http://{HOST}:{PORT}: {exc}"
+        ) from exc
+
     print(f"ORCHESTRA Web UI: http://{HOST}:{PORT}")
     print(f"Using: {ORCH_EXE}")
     try:
