@@ -40,6 +40,16 @@
   backgroundcolor=\color{black!2}
 }
 
+\lstdefinestyle{console}{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  backgroundcolor=\color{black!4}
+}
+
 \newcommand{\diagramplaceholder}[1]{%
   \fbox{%
     \begin{minipage}[c][5.5cm][c]{0.88\textwidth}
@@ -67,16 +77,16 @@
 
 \newcommand{\executionflowfigure}{%
   \IfFileExists{execution_flow.png}{%
-    \includegraphics[width=0.9\textwidth]{execution_flow.png}%
+    \includegraphics[width=0.86\textwidth,height=0.5\textheight,keepaspectratio]{execution_flow.png}%
   }{%
     \IfFileExists{execution_flow.jpg}{%
-      \includegraphics[width=0.9\textwidth]{execution_flow.jpg}%
+      \includegraphics[width=0.86\textwidth,height=0.5\textheight,keepaspectratio]{execution_flow.jpg}%
     }{%
       \IfFileExists{code_execution_flow.png}{%
-        \includegraphics[width=0.9\textwidth]{code_execution_flow.png}%
+        \includegraphics[width=0.86\textwidth,height=0.5\textheight,keepaspectratio]{code_execution_flow.png}%
       }{%
         \IfFileExists{code_execution_flow.jpg}{%
-          \includegraphics[width=0.9\textwidth]{code_execution_flow.jpg}%
+          \includegraphics[width=0.86\textwidth,height=0.5\textheight,keepaspectratio]{code_execution_flow.jpg}%
         }{%
           \diagramplaceholder{Add code execution flow diagram here\\Suggested file name: \texttt{execution\_flow.png}}%
         }%
@@ -412,6 +422,8 @@ This flow shows how one frontend can support multiple backend targets without ch
 \caption{Code execution flow in the ORCHESTRA compiler.}
 \end{figure}
 
+\clearpage
+
 \section{Implementation}
 
 The implementation is divided across a small set of core files, each with a clearly defined role in the compiler pipeline.
@@ -587,47 +599,63 @@ The Web UI does not implement a separate compiler. Instead, it acts as a wrapper
 
 \section{Results \& Demo}
 
-The project was demonstrated through sample programs covering the major language features. Each category was executed through the implemented backend pipeline, and the observed outputs matched the expected behavior.
+This section presents one representative program and its observed output.
 
-\subsection*{Sample Program Categories}
+\subsection*{Demonstration Example}
+
+\begin{minipage}[t]{0.56\textwidth}
+\textbf{Input Program}
+\vspace{0.35em}
+
+\begin{lstlisting}[style=orchestra]
+flow main take() {
+  note value = 7;
+  note ref = &value;
+  stagethru ref = 12;
+
+  note nums = [1, 2, 3];
+  stage nums[1] = deref(ref);
+
+  branch (nums[1] > 10) {
+    emit "updated";
+  } elsewise {
+    emit "unchanged";
+  }
+
+  emit nums;
+  emit deref(ref);
+}
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.39\textwidth}
+\textbf{Observed Output}
+\vspace{0.35em}
+
+\begin{lstlisting}[style=console]
+updated
+[1, 12, 3]
+12
+\end{lstlisting}
+
+\vspace{0.7em}
+\textbf{Validated In}
 
 \begin{table}[H]
 \centering
-\begin{tabularx}{\textwidth}{l X X}
+\begin{tabular}{ll}
 \toprule
-\textnormal{Category} & \textnormal{Sample Demonstration} & \textnormal{Observed Result} \\
+Mode & Status \\
 \midrule
-Expressions & arithmetic, logical operations, chaining & Correct evaluation and output \\
-Control Flow & branch, elsewise, repeat, score & Correct branching and loop execution \\
-Recursion & recursive flows & Correct recursive behavior with runtime limit checks \\
-Collections & arrays, maps, sets, indexing & Correct storage, retrieval, and helper operations \\
-OOP Features & methods, fields, inheritance, \texttt{this}, \texttt{super} & Correct object and inheritance behavior \\
-Pointers & \texttt{\&x}, \texttt{deref(p)}, \texttt{stagethru} & Correct indirect read and write behavior \\
-Shadowing & nested lexical scope examples & Correct local scope resolution \\
+AST & Pass \\
+VM & Pass \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
+\end{minipage}
 
-\subsection*{Build and Run Summary}
+\subsection*{Outcome}
 
-\begin{table}[H]
-\centering
-\begin{tabularx}{\textwidth}{l X}
-\toprule
-\textnormal{Action} & \textnormal{Command / Script} \\
-\midrule
-Build compiler & \texttt{build\_cpp.bat} \\
-Run AST backend & \texttt{orchestra.exe input.txt output.txt} \\
-Run VM backend & \texttt{orchestra.exe input.txt output.txt --backend=vm} \\
-Run test suite & \texttt{run\_tests.bat} \\
-Run AST vs VM equivalence tests & \texttt{run\_vm\_tests.bat} \\
-Show Equivalent C++ & \texttt{orchestra.exe input.txt output.txt --emit=cpp} \\
-Run Web UI & \texttt{run\_webui.bat} \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-These demonstrations show that the same source language can be parsed once and then executed or emitted through multiple backend paths while preserving consistent semantics.
+The demo confirms identical behavior across AST and VM execution while covering pointer update, array mutation, conditional control flow, and formatted runtime output.
 
 \section{Conclusion}
 
