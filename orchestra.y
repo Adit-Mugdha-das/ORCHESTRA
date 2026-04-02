@@ -71,7 +71,8 @@ static char *qualify_name(const char *a, const char *b) {
 %token <sval> SUPER
 
 %type <expr> expression logic_or logic_and comparison additive term unary primary
-%type <stmt> statement block branch_statement repeat_statement flow_definition
+%type <stmt> statement block branch_statement repeat_statement score_statement flow_definition
+%type <stmt> score_init score_step
 %type <stmt_list> statement_list
 %type <expr_list> arg_list arg_list_opt
 %type <name_list> parameter_part parameter_list_opt parameter_list
@@ -271,6 +272,7 @@ statement:
 
     | branch_statement
     | repeat_statement
+    | score_statement
     ;
 
 /* ----- branch ----- */
@@ -285,6 +287,34 @@ branch_statement:
 repeat_statement:
       REPEAT LPAREN expression RPAREN block
         { $$ = make_repeat($3, $5); }
+    ;
+
+/* ----- score (for-loop) ----- */
+/* Syntax: score (note i = 0; i < n; stage i = i + 1) { body }
+   Init and step are optional; omitting cond means loop forever (use break). */
+score_statement:
+      SCORE LPAREN score_init SEMICOLON expression SEMICOLON score_step RPAREN block
+        { $$ = make_score($3, $5, $7, $9); }
+    | SCORE LPAREN score_init SEMICOLON SEMICOLON score_step RPAREN block
+        { $$ = make_score($3, NULL, $6, $8); }
+    ;
+
+score_init:
+      NOTE IDENTIFIER ASSIGN expression
+        { $$ = make_assign(STMT_NOTE, $2, $4); }
+    | STAGE IDENTIFIER ASSIGN expression
+        { $$ = make_assign(STMT_STAGE, $2, $4); }
+    | /* empty */
+        { $$ = NULL; }
+    ;
+
+score_step:
+      STAGE IDENTIFIER ASSIGN expression
+        { $$ = make_assign(STMT_STAGE, $2, $4); }
+    | STAGE IDENTIFIER LBRACKET expression RBRACKET ASSIGN expression
+        { $$ = make_index_stage($2, $4, $7); }
+    | /* empty */
+        { $$ = NULL; }
     ;
 
 /* ----- expressions ----- */

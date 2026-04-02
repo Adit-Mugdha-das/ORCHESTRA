@@ -362,6 +362,50 @@ static void print_stmt_cpp(FILE* out, Stmt* s, int indentLevel) {
             return;
         }
 
+        case STMT_SCORE: {
+            /* score (init; cond; step) { body }  →  for (init; cond; step) { body } */
+            indent(out, indentLevel);
+            fputs("for (", out);
+
+            /* init part — print inline without trailing newline */
+            if (s->init) {
+                if (s->init->kind == STMT_NOTE) {
+                    print_note_keyword(out);
+                    fputc(' ', out);
+                    fputs(s->init->name ? s->init->name : "/*?*/", out);
+                    fputs(" = ", out);
+                    print_expr_cpp(out, s->init->expr, 0);
+                } else if (s->init->kind == STMT_STAGE) {
+                    fputs(s->init->name ? s->init->name : "/*?*/", out);
+                    fputs(" = ", out);
+                    print_expr_cpp(out, s->init->expr, 0);
+                }
+            }
+            fputs("; ", out);
+
+            /* cond part */
+            if (s->cond) print_expr_cpp(out, s->cond, 0);
+            fputs("; ", out);
+
+            /* step part */
+            if (s->step) {
+                if (s->step->kind == STMT_STAGE) {
+                    fputs(s->step->name ? s->step->name : "/*?*/", out);
+                    fputs(" = ", out);
+                    print_expr_cpp(out, s->step->expr, 0);
+                } else if (s->step->kind == STMT_INDEX_STAGE) {
+                    fputs(s->step->name ? s->step->name : "/*?*/", out);
+                    fputs("[", out);
+                    print_expr_cpp(out, s->step->index, 0);
+                    fputs("] = ", out);
+                    print_expr_cpp(out, s->step->expr, 0);
+                }
+            }
+            fputs(") ", out);
+            print_block_like(out, s->body, indentLevel);
+            return;
+        }
+
         case STMT_BREAK: {
             indent(out, indentLevel);
             fputs("break;\n", out);

@@ -681,6 +681,17 @@ Stmt* make_repeat(Expr *cond, Stmt *body) {
     return s;
 }
 
+Stmt* make_score(Stmt *init, Expr *cond, Stmt *step, Stmt *body) {
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_SCORE;
+    s->init = init;
+    s->cond = cond;
+    s->step = step;
+    s->body = body;
+    return s;
+}
+
 Stmt* make_return(Expr *expr) {
     Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
@@ -1696,6 +1707,33 @@ static ExecSignal exec_stmt(Stmt *s) {
                 if (sig == SIG_CONTINUE) { continue; }
                 if (sig == SIG_RETURN) { g_loop_depth--; return SIG_RETURN; }
             }
+            g_loop_depth--;
+            return SIG_OK;
+        }
+        case STMT_SCORE: {
+            /* for-loop: score (init; cond; step) { body } */
+            g_loop_depth++;
+            push_scope(); /* scope for the init variable */
+            if (s->init) exec_stmt(s->init);
+            long long iters = 0;
+            const long long max_iters = 100000;
+            for (;;) {
+                if (++iters > max_iters) {
+                    pop_scope();
+                    runtime_error("Execution limit exceeded (possible infinite loop)");
+                }
+                if (s->cond) {
+                    Value c = eval_expr(s->cond);
+                    if (strcmp(c.type, "bool") != 0) runtime_error("score condition must be bool");
+                    if (!c.boolean) break;
+                }
+                ExecSignal sig = exec_stmt(s->body);
+                if (sig == SIG_BREAK) { break; }
+                if (sig == SIG_RETURN) { pop_scope(); g_loop_depth--; return SIG_RETURN; }
+                /* SIG_CONTINUE falls through to execute the step */
+                if (s->step) exec_stmt(s->step);
+            }
+            pop_scope();
             g_loop_depth--;
             return SIG_OK;
         }

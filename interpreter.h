@@ -27,7 +27,7 @@ typedef struct FieldList FieldList;
 /* Expression/statement kinds */
 enum { EXPR_LIT = 1, EXPR_VAR, EXPR_FIELD, EXPR_DOTCALL, EXPR_SUPERCALL, EXPR_SUPERCTOR, EXPR_BIN, EXPR_UNARY, EXPR_CALL, EXPR_CHAIN, EXPR_ARRAYLIT, EXPR_INDEX };
 
-enum { STMT_NOTE = 1, STMT_STAGE, STMT_FIELD_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR, STMT_INDEX_STAGE };
+enum { STMT_NOTE = 1, STMT_STAGE, STMT_FIELD_STAGE, STMT_EMIT, STMT_BLOCK, STMT_BRANCH, STMT_REPEAT, STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_EXPR, STMT_INDEX_STAGE, STMT_SCORE };
 
 /* Internal operator codes for the interpreter */
 enum { OP_PLUS = 1, OP_MINUS, OP_MUL, OP_DIV, OP_LT, OP_LE, OP_GT, OP_GE, OP_EQ, OP_NE, OP_AND, OP_OR, OP_NOT, OP_NEG };
@@ -128,6 +128,10 @@ struct Stmt {
     Stmt *then_block;
     Stmt *else_block;
     Stmt *body;
+
+    /* score (for-loop): init; cond; step */
+    Stmt *init;   /* NOTE or STAGE statement, or NULL */
+    Stmt *step;   /* STAGE statement, or NULL */
 };
 
 /* AST constructors used by the parser */
@@ -160,6 +164,7 @@ Stmt* make_field_stage(char *base /* takes ownership */, char *field /* takes ow
 Stmt* make_index_stage(char *name /* takes ownership */, Expr *index, Expr *expr);
 Stmt* make_branch(Expr *cond, Stmt *then_block, Stmt *else_block);
 Stmt* make_repeat(Expr *cond, Stmt *body);
+Stmt* make_score(Stmt *init, Expr *cond, Stmt *step, Stmt *body);
 Stmt* make_return(Expr *expr);
 
 /* Ensemble (struct) registry */

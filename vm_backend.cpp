@@ -29,9 +29,10 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e);
 static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s);
 
 struct LoopContext {
-    size_t continue_target;
+    size_t continue_target;        /* SIZE_MAX = patch later (score loop) */
     int scope_depth_at_loop;
     std::vector<size_t> break_jumps;
+    std::vector<size_t> continue_jumps; /* for score loops: continue lands at step */
 };
 
 static std::vector<LoopContext> g_loops;
@@ -80,7 +81,44 @@ static void compile_unary(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
     std::exit(1);
 }
 
+/* Jump helpers — also defined again at their original location for any callers below */
+static size_t emit_jump_early(BytecodeFunc& fn, OpCode op, int placeholder = 0) {
+    const size_t at = fn.code.size();
+    fn.emit(op, placeholder);
+    return at;
+}
+static void patch_jump_early(BytecodeFunc& fn, size_t at, size_t target) {
+    if (at < fn.code.size()) fn.code[at].a = (int)target;
+}
+
 static void compile_binary(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
+    /* Short-circuit AND/OR must not evaluate the right side eagerly */
+    if (e->op == OP_AND) {
+        /* a && b:  if a is false → false (skip b); else → b */
+        compile_expr(prog, fn, e->left);
+        const size_t jmp_false = emit_jump_early(fn, OpCode::JMP_IF_FALSE, 0);
+        compile_expr(prog, fn, e->right);
+        const size_t jmp_end = emit_jump_early(fn, OpCode::JMP, 0);
+        const size_t short_ip = fn.code.size();
+        patch_jump_early(fn, jmp_false, short_ip);
+        fn.emit(OpCode::PUSH_BOOL, 0); /* false */
+        patch_jump_early(fn, jmp_end, fn.code.size());
+        return;
+    }
+    if (e->op == OP_OR) {
+        /* a || b:  if a is true → true (skip b); else → b */
+        compile_expr(prog, fn, e->left);
+        fn.emit(OpCode::NOT); /* negate so we can use JMP_IF_FALSE */
+        const size_t jmp_true = emit_jump_early(fn, OpCode::JMP_IF_FALSE, 0);
+        compile_expr(prog, fn, e->right);
+        const size_t jmp_end = emit_jump_early(fn, OpCode::JMP, 0);
+        const size_t short_ip = fn.code.size();
+        patch_jump_early(fn, jmp_true, short_ip);
+        fn.emit(OpCode::PUSH_BOOL, 1); /* true */
+        patch_jump_early(fn, jmp_end, fn.code.size());
+        return;
+    }
+
     compile_expr(prog, fn, e->left);
     compile_expr(prog, fn, e->right);
 
@@ -546,6 +584,52 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             }
             return;
         }
+        case STMT_SCORE: {
+            /* score (init; cond; step) { body } - classic for-loop */
+            /* open scope so 'note i' in init is local to the loop */
+            fn.emit(OpCode::SCOPE_PUSH);
+            g_scope_depth++;
+
+            if (s->init) compile_stmt(prog, fn, s->init);
+
+            const size_t loop_begin = fn.code.size();
+
+            /* condition — may be absent (infinite until break) */
+            size_t jmp_exit = SIZE_MAX;
+            if (s->cond) {
+                compile_expr(prog, fn, s->cond);
+                jmp_exit = emit_jump(fn, OpCode::JMP_IF_FALSE, 0);
+            }
+
+            LoopContext ctx;
+            ctx.continue_target = SIZE_MAX; /* patched after step is emitted */
+            ctx.scope_depth_at_loop = g_scope_depth;
+            g_loops.push_back(ctx);
+
+            compile_stmt(prog, fn, s->body);
+
+            LoopContext done = g_loops.back();
+            g_loops.pop_back();
+
+            /* step — continue jumps land here */
+            const size_t step_ip = fn.code.size();
+            for (size_t cj : done.continue_jumps) {
+                patch_jump(fn, cj, step_ip);
+            }
+            if (s->step) compile_stmt(prog, fn, s->step);
+
+            fn.emit(OpCode::JMP, (int)loop_begin);
+
+            const size_t loop_end = fn.code.size();
+            if (jmp_exit != SIZE_MAX) patch_jump(fn, jmp_exit, loop_end);
+            for (size_t bj : done.break_jumps) {
+                patch_jump(fn, bj, loop_end);
+            }
+
+            fn.emit(OpCode::SCOPE_POP);
+            g_scope_depth--;
+            return;
+        }
         case STMT_BREAK: {
             if (g_loops.empty()) {
                 vm_compile_error(g_compile_out, "break used outside repeat");
@@ -566,7 +650,14 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
 
             const int target_depth = g_loops.back().scope_depth_at_loop;
             for (int i = 0; i < (g_scope_depth - target_depth); i++) fn.emit(OpCode::SCOPE_POP);
-            fn.emit(OpCode::JMP, (int)g_loops.back().continue_target);
+
+            if (g_loops.back().continue_target == SIZE_MAX) {
+                /* score loop: continue must jump to the step; patch later */
+                const size_t at = emit_jump(fn, OpCode::JMP, 0);
+                g_loops.back().continue_jumps.push_back(at);
+            } else {
+                fn.emit(OpCode::JMP, (int)g_loops.back().continue_target);
+            }
             return;
         }
         case STMT_RETURN: {
