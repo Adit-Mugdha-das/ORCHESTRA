@@ -26,6 +26,8 @@ static void lex_error_at(int line, const char *msg, const char *near_text) {
 }
 %}
 
+%x BLOCK_COMMENT
+
 %%
 
 "flow"      return FLOW;
@@ -45,6 +47,8 @@ static void lex_error_at(int line, const char *msg, const char *near_text) {
 "break"     return BREAK;
 "continue"  return CONTINUE;
 "score"     return SCORE;
+"deref"     return DEREF;
+"stagethru" return STAGETHRU;
 
 "int"       return TYPE_INT;
 "float"     return TYPE_FLOAT;
@@ -66,8 +70,12 @@ static void lex_error_at(int line, const char *msg, const char *near_text) {
 "-"         return MINUS;
 "*"         return MUL;
 "!"         return NOT;
-"//"[^\n]*  ;
-"/"         return DIV;
+"//"[^\n]*          ;
+"/*"                 BEGIN(BLOCK_COMMENT);
+<BLOCK_COMMENT>"*/" BEGIN(INITIAL);
+<BLOCK_COMMENT>\n    ;
+<BLOCK_COMMENT>.    ;
+"/"                 return DIV;
 "<="        return LE;
 "<"         return LT;
 ">="        return GE;
@@ -76,6 +84,7 @@ static void lex_error_at(int line, const char *msg, const char *near_text) {
 ";"         return SEMICOLON;
 ","         return COMMA;
 "."         return DOT;
+"&"         return AMPERSAND;
 "("         return LPAREN;
 ")"         return RPAREN;
 "["         return LBRACKET;
@@ -107,16 +116,26 @@ static void lex_error_at(int line, const char *msg, const char *near_text) {
 }
 
 \"([^\\\"]|\\.)*\" {
-    /* store string literal without surrounding quotes */
     int n = yyleng;
     char *s = (char*)malloc((size_t)n);
     if (!s) exit(1);
-    if (n >= 2) {
-        memcpy(s, yytext + 1, (size_t)(n - 2));
-        s[n - 2] = '\0';
-    } else {
-        s[0] = '\0';
+    int dst = 0;
+    for (int src = 1; src < n - 1; src++) {
+        if (yytext[src] == '\\' && src + 1 < n - 1) {
+            src++;
+            switch (yytext[src]) {
+                case 'n':  s[dst++] = '\n'; break;
+                case 't':  s[dst++] = '\t'; break;
+                case 'r':  s[dst++] = '\r'; break;
+                case '\\': s[dst++] = '\\'; break;
+                case '"':  s[dst++] = '"';  break;
+                default:   s[dst++] = '\\'; s[dst++] = yytext[src]; break;
+            }
+        } else {
+            s[dst++] = yytext[src];
+        }
     }
+    s[dst] = '\0';
     yylval.sval = s;
     return STRING_LITERAL;
 }

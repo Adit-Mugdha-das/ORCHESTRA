@@ -76,6 +76,12 @@ enum class OpCode {
 
     /* Output */
     EMIT,
+    PLAY,         /* a = argc; pushes args then format_str in order; formatted print, no newline */
+
+    /* Pointers */
+    ADDROF,       /* a = const_str index of variable name; pushes PTR value */
+    DEREF_OP,     /* stack: ptr -> pushes the referenced variable's value */
+    STORE_THRU,   /* stack: ptr, value -> stores value into the variable ptr points at */
 
     /* Control flow */
     JMP,          /* a = target ip */

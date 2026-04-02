@@ -19,8 +19,8 @@ This document explains how the project is structured internally and how the **sa
 - Builds an AST using constructor helpers declared in [interpreter.h](interpreter.h)
 
 Key AST nodes you’ll see:
-- Expressions: literals, variables, calls, dot-calls, field access, unary/binary ops, chained comparisons, arrays, indexing
-- Statements: declaration/assignment, emit, return, blocks, branch/else, repeat loops, break/continue, field/index assignment
+- Expressions: literals, variables, calls, dot-calls, field access, unary/binary ops, chained comparisons, arrays, indexing, address-of (`&x`), dereference (`deref(p)`)
+- Statements: declaration/assignment, emit, return, blocks, branch/else, repeat/for loops, break/continue, field/index assignment, pointer write-through (`stagethru`)
 
 The parser also:
 - registers `flow` definitions into a function registry
@@ -39,6 +39,7 @@ The parser also:
   - numeric (int/float), bool, string
   - arrays, maps, sets
   - struct instances (ensembles)
+  - pointers (reference to a named variable, created with `&x`)
 
 Collections are heap-backed and referenced via pointers stored in `Value`.
 
@@ -62,6 +63,11 @@ The project supports struct/class-like types:
 
 This backend is treated as the **source of truth** for language semantics.
 
+Pointer support:
+- `EXPR_ADDROF` stores the target variable name as a pointer value.
+- `EXPR_DEREF` looks up the target variable by name at runtime.
+- `STMT_STAGETHRU` resolves the pointer and writes to the target variable.
+
 ---
 
 ## 4) Backend B: VM backend (compiler + VM)
@@ -81,6 +87,11 @@ The VM backend is intentionally structured as two phases:
 
 Design goal:
 - match interpreter behavior first (correctness), then optimize.
+
+Pointer support (opcodes):
+- `ADDROF` — pushes a pointer value holding the target variable name.
+- `DEREF_OP` — reads the current value of the pointed-to variable.
+- `STORE_THRU` — writes through the pointer to the target variable.
 
 ---
 

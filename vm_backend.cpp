@@ -151,6 +151,17 @@ static void compile_expr(BytecodeProgram& prog, BytecodeFunc& fn, Expr* e) {
         case EXPR_LIT:
             compile_lit(prog, fn, e);
             return;
+        case EXPR_ADDROF: {
+            if (!e->name) { vm_compile_error(g_compile_out, "Null addrof variable name"); std::exit(1); }
+            const int id = prog.add_str(e->name);
+            fn.emit(OpCode::ADDROF, id);
+            return;
+        }
+        case EXPR_DEREF: {
+            compile_expr(prog, fn, e->left);
+            fn.emit(OpCode::DEREF_OP);
+            return;
+        }
         case EXPR_VAR: {
             if (!e->name) {
                 vm_compile_error(g_compile_out, "Null variable name");
@@ -479,6 +490,23 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             compile_expr(prog, fn, s->expr);
             fn.emit(OpCode::EMIT);
             return;
+        case STMT_FIXED: {
+            /* Treat like NOTE at bytecode level — const enforcement is the AST interpreter's job */
+            if (!s->name) { vm_compile_error(g_compile_out, "Null FIXED name"); std::exit(1); }
+            compile_expr(prog, fn, s->expr);
+            const int id = prog.add_str(s->name);
+            fn.emit(OpCode::NOTE_NAME, id);
+            return;
+        }
+        case STMT_PLAY: {
+            int argc = 0;
+            for (ExprList *a = s->play_args; a; a = a->next) {
+                compile_expr(prog, fn, a->expr);
+                argc++;
+            }
+            fn.emit(OpCode::PLAY, argc);
+            return;
+        }
         case STMT_BLOCK:
             fn.emit(OpCode::SCOPE_PUSH);
             g_scope_depth++;
@@ -504,6 +532,14 @@ static void compile_stmt(BytecodeProgram& prog, BytecodeFunc& fn, Stmt* s) {
             compile_expr(prog, fn, s->expr);
             const int id = prog.add_str(s->name);
             fn.emit(OpCode::STAGE_NAME, id);
+            return;
+        }
+        case STMT_STAGETHRU: {
+            if (!s->name) { vm_compile_error(g_compile_out, "Null STAGETHRU pointer name"); std::exit(1); }
+            const int id = prog.add_str(s->name);
+            fn.emit(OpCode::LOAD_NAME, id);    /* push the pointer value */
+            compile_expr(prog, fn, s->expr);   /* push the rhs value    */
+            fn.emit(OpCode::STORE_THRU);
             return;
         }
         case STMT_FIELD_STAGE: {

@@ -52,6 +52,7 @@ This file lists **only features** (no architecture walkthrough). It is intended 
 ### B1) Source format basics
 - Whitespace is ignored (spaces/tabs/newlines).
 - Single-line comments: `// ...` (to end-of-line).
+- Multi-line block comments: `/* ... */` (can span multiple lines, can appear anywhere).
 - Identifiers: `[a-zA-Z][a-zA-Z0-9_]*`.
 - Numeric literals:
   - int: `123`
@@ -59,7 +60,7 @@ This file lists **only features** (no architecture walkthrough). It is intended 
   - scientific: `1e9`, `2.5e-3`, `1E+6` (exponent suffix on int or float)
 - String literals:
   - written as `"..."`
-  - lexer accepts backslash escapes in the token, but **does not unescape them** (the characters are preserved as typed).
+  - escape sequences are processed: `\n` (newline), `\t` (tab), `\r` (carriage return), `\\` (backslash), `\"` (quote)
 
 ### B2) Program units
 
@@ -82,14 +83,23 @@ This file lists **only features** (no architecture walkthrough). It is intended 
 ### B3) Statements
 
 #### B3.1) Variable declaration
-- `note x = expr;`
+- Mutable variable:
+  - `note x = expr;`
+- Constant (immutable):
+  - `fixed PI = 3.14;`
+  - Supported types: int, float, bool, string.
+  - Any `stage` reassignment to a `fixed` name produces a **Runtime Error**.
 
 #### B3.2) Assignment
 - Variable assignment:
   - `stage x = expr;`
 
 #### B3.3) Output
-- `emit expr;`
+- `emit expr;` — prints the value followed by a newline.
+- `play expr;` — prints a single value **without** a trailing newline.
+- `play fmtString, arg1, arg2, ...;` — printf-style formatted output (no newline unless `\n` is in the format string).
+  - Supported specifiers: `%d` (int), `%f` (float), `%s` (any value), `%b` (bool).
+  - Example: `play "x = %d, name = %s\n", x, name;`
 
 #### B3.4) Control flow
 - If / else:
@@ -97,6 +107,13 @@ This file lists **only features** (no architecture walkthrough). It is intended 
   - `branch(cond) { ... } elsewise { ... }`
 - While loop:
   - `repeat(cond) { ... }`
+- For loop:
+  - `score (note i = 0; i < 10; stage i = i + 1) { ... }`
+  - Init part can use `note` (new variable) or `stage` (existing variable), or be empty.
+  - Step part can be a `stage` assignment, or empty.
+  - Empty condition runs forever (use `break` to exit).
+  - `continue` jumps to the step expression, not the top of the body.
+  - Example (no init): `score (; x > 0; stage x = x - 1) { ... }`
 - Loop control:
   - `break;`
   - `continue;`
@@ -123,6 +140,12 @@ This file lists **only features** (no architecture walkthrough). It is intended 
 #### B3.9) Super-constructor statement
 - `super(args...);`
   - Parsed as an expression statement that calls the parent constructor.
+
+#### B3.10) Pointer write-through
+- `stagethru p = expr;`
+  - Evaluates `expr` and writes the result to the variable that `p` points to.
+  - `p` must hold a pointer value (obtained via `&varname`).
+  - Example: `stagethru p = 99;` is equivalent to `stage x = 99;` when `p = &x`.
 
 ---
 
@@ -196,6 +219,20 @@ Runtime meaning:
 - `this` is a valid expression (variable-like).
 - `super.method(args)` is a valid expression.
 - `super(args)` is a valid expression and also allowed as a statement (as `super(args);`).
+
+### C13) Pointer operators
+- **Address-of**: `&varname` — evaluates to a pointer value referencing `varname`.
+- **Dereference**: `deref(p)` — reads the current value of the variable `p` points to.
+- Pointer values can be used in any expression context: `deref(p) + 3`.
+- Supported for all value types: int, float, bool, string.
+- Example:
+  ```
+  note x = 10;
+  note p = &x;
+  emit deref(p);        # prints 10
+  stagethru p = 99;
+  emit x;               # prints 99
+  ```
 
 ---
 
@@ -280,9 +317,28 @@ Safety:
 
 ---
 
-## G) Reserved / not-yet-used keywords
+## G) Keyword reference
 
-These are tokenized by the lexer but are not currently used in the grammar/semantics:
-- `fixed`
-- `play`
-- `score`
+All keywords and their C / C++ equivalents:
+
+| ORCHESTRA | Meaning | C / C++ equivalent |
+|-----------|---------|--------------------|
+| `flow` | Function definition | `function` / method |
+| `take` | Parameter list | `(params)` |
+| `emit` | Print with newline | `printf` + `\n` |
+| `play` | Print without newline | `printf` |
+| `note` | Mutable variable | `auto` / `var` |
+| `fixed` | Immutable constant | `const auto` |
+| `stage` | Assignment | `=` |
+| `stagethru` | Write-through pointer assignment | `*p = expr` |
+| `ensemble` | Struct declaration | `struct` |
+| `symphony` | Class declaration | `class` |
+| `branch` | Conditional | `if` |
+| `elsewise` | Else branch | `else` |
+| `repeat` | While loop | `while` |
+| `score` | For loop | `for` |
+| `break` | Break out of loop | `break` |
+| `continue` | Skip to next iteration | `continue` |
+| `return` | Return from flow | `return` |
+| `this` | Current instance | `this` |
+| `super` | Parent instance | `super` / base class |

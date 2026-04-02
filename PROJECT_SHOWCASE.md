@@ -29,15 +29,21 @@ It also includes a local **Web UI playground** that can run either backend and s
 - `flow main take() { ... }` is the typical entrypoint
 
 ### Variables and scope
-- `note x = expr;` declares a variable in the current scope
+- `note x = expr;` declares a mutable variable in the current scope
+- `fixed x = expr;` declares an immutable constant
 - `stage x = expr;` assigns to an existing variable
 - `{ ... }` creates a new lexical scope (shadowing works)
 
 ### Control flow
 - `branch(cond) { ... } elsewise { ... }` (if/else)
 - `repeat(cond) { ... }` (while loop)
+- `score (note i = 0; i < 10; stage i = i + 1) { ... }` (for loop)
 - `break;` and `continue;`
 - `return expr;` / `return;`
+
+### Output
+- `emit expr;` — print with newline
+- `play fmt, args...;` — printf-style formatted output (no trailing newline)
 
 ### Expressions and operators
 - Literals: `int`, `float`, `bool`, `string`
@@ -57,6 +63,12 @@ It also includes a local **Web UI playground** that can run either backend and s
 Built-in helpers (used consistently in AST + VM):
 - Arrays: `array(n)`, `push(arr,v)`, `pop(arr)`, `resize(arr,n)`
 - Maps/Sets: `map()`, `set()`, `add(set,k)`, `has(mapOrSet,k)`, `get(map,k)`, `put(map,k,v)`, `del(mapOrSet,k)`, `keys(mapOrSet)`
+
+### Pointers
+- `note p = &x;` — takes the address of `x` and stores a pointer value in `p`
+- `deref(p)` — reads the current value of the variable `p` points to
+- `stagethru p = expr;` — writes `expr` to the variable `p` points to
+- Works with all value types; pointer expressions can be used anywhere (`deref(p) + 3`)
 
 ### OOP-like features (type + methods + inheritance)
 - `symphony TypeName extends Parent { ... }` defines a class-like namespace and registers fields
@@ -93,8 +105,6 @@ Built-in helpers (used consistently in AST + VM):
 
 ---
 
-## Notes / constraints (honest limitations)
-
-- `fixed`, `play`, and `score` are currently **reserved tokens** (lexed) but not parsed/used.
+## Notes
 - The “Equivalent C++” output is **for learning only** and is not guaranteed to compile.
 - Map/set keys use a string-key model (values are stringified for keying).

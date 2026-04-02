@@ -17,7 +17,7 @@ static void vm_fail(FILE* out, const char* msg) {
     std::fflush(out);
 }
 
-enum class VTag : uint8_t { INT, FLOAT, BOOL, STR, STRUCT, ARRAY, MAP, SET, NIL };
+enum class VTag : uint8_t { INT, FLOAT, BOOL, STR, STRUCT, ARRAY, MAP, SET, PTR, NIL };
 
 struct VMValue {
     VTag tag;
@@ -225,6 +225,9 @@ static void print_value_inline(FILE* out, const VMValue& v, int depth) {
             std::fprintf(out, "}");
             return;
         }
+        case VTag::PTR:
+            std::fprintf(out, "&%s", v.str ? v.str : "(null)");
+            return;
         default:
             std::fprintf(out, "null");
             return;
@@ -607,6 +610,10 @@ static void store_name_note(FILE* out, const char* name, const VMValue& v) {
         declare_or_update_current_scope_set(name, v.ptr);
         return;
     }
+    if (v.tag == VTag::PTR) {
+        declare_or_update_current_scope_value(name, "pointer", 0, v.str ? v.str : "", 0);
+        return;
+    }
 
     vm_fail(out, "Unsupported value type for NOTE");
 }
@@ -649,6 +656,10 @@ static void store_name_stage(FILE* out, const char* name, const VMValue& v) {
     }
     if (v.tag == VTag::SET) {
         insert_or_update_set(name, v.ptr);
+        return;
+    }
+    if (v.tag == VTag::PTR) {
+        insert_or_update_value(name, "pointer", 0, v.str ? v.str : "", 0);
         return;
     }
 
@@ -703,6 +714,17 @@ static bool load_name(FILE* out, const char* name, VMValue* out_v) {
     }
     if (std::strcmp(sym->type, "set") == 0) {
         *out_v = v_set(reinterpret_cast<VMSet*>(sym->ptr_value));
+        return true;
+    }
+    if (std::strcmp(sym->type, "pointer") == 0) {
+        VMValue v;
+        v.tag = VTag::PTR;
+        v.num = 0;
+        v.boolean = false;
+        v.str = sym->str_value;
+        v.ptr = nullptr;
+        v.struct_type = nullptr;
+        *out_v = v;
         return true;
     }
 
@@ -1598,6 +1620,43 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
                 ip = (size_t)ins.a;
                 break;
 
+            case OpCode::ADDROF: {
+                if (ins.a < 0 || (size_t)ins.a >= prog.const_str.size()) {
+                    vm_fail(out, "Bad const_str index for ADDROF");
+                    return false;
+                }
+                VMValue v;
+                v.tag = VTag::PTR;
+                v.num = 0;
+                v.boolean = false;
+                v.str = prog.const_str[(size_t)ins.a].c_str();
+                v.ptr = nullptr;
+                v.struct_type = nullptr;
+                if (!push(v)) return false;
+                break;
+            }
+            case OpCode::DEREF_OP: {
+                VMValue p = pop();
+                if (p.tag != VTag::PTR || !p.str) {
+                    vm_fail(out, "deref: value is not a pointer");
+                    return false;
+                }
+                VMValue v;
+                if (!load_name(out, p.str, &v)) return false;
+                if (!push(v)) return false;
+                break;
+            }
+            case OpCode::STORE_THRU: {
+                VMValue val = pop();
+                VMValue p   = pop();
+                if (p.tag != VTag::PTR || !p.str) {
+                    vm_fail(out, "stagethru: value is not a pointer");
+                    return false;
+                }
+                store_name_stage(out, p.str, val);
+                break;
+            }
+
             case OpCode::JMP_IF_FALSE: {
                 VMValue cond = pop();
                 if (cond.tag != VTag::BOOL) {
@@ -1617,6 +1676,44 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
             case OpCode::EMIT: {
                 VMValue v = pop();
                 print_value(out, v);
+                break;
+            }
+
+            case OpCode::PLAY: {
+                int argc = ins.a;
+                if (argc <= 0) break;
+                /* Collect all args (pushed left-to-right, so pop right-to-left) */
+                std::vector<VMValue> args((size_t)argc);
+                for (int i = argc - 1; i >= 0; i--) args[(size_t)i] = pop();
+                if (argc == 1) {
+                    /* Single value — print without newline */
+                    print_value_inline(out, args[0], 0);
+                    break;
+                }
+                /* Format string mode */
+                if (args[0].tag != VTag::STR || !args[0].str) {
+                    vm_fail(out, "play: first argument must be a format string");
+                    break;
+                }
+                const char *fmt = args[0].str;
+                int arg_idx = 1;
+                while (*fmt) {
+                    if (*fmt == '%' && *(fmt + 1) != '\0') {
+                        fmt++;
+                        char spec = *fmt++;
+                        if (arg_idx >= argc) { std::fputc('%', out); std::fputc(spec, out); continue; }
+                        const VMValue &av = args[(size_t)arg_idx++];
+                        switch (spec) {
+                            case 'd': std::fprintf(out, "%lld", (long long)av.num); break;
+                            case 'f': std::fprintf(out, "%g", av.num); break;
+                            case 's': print_value_inline(out, av, 0); break;
+                            case 'b': std::fprintf(out, "%s", av.boolean ? "true" : "false"); break;
+                            default: std::fputc('%', out); std::fputc(spec, out); break;
+                        }
+                    } else {
+                        std::fputc(*fmt++, out);
+                    }
+                }
                 break;
             }
 
@@ -1711,6 +1808,10 @@ const char* opcode_name(OpCode op) {
         case OpCode::GT: return "GT";
         case OpCode::GE: return "GE";
         case OpCode::EMIT: return "EMIT";
+        case OpCode::PLAY: return "PLAY";
+        case OpCode::ADDROF:     return "ADDROF";
+        case OpCode::DEREF_OP:   return "DEREF_OP";
+        case OpCode::STORE_THRU: return "STORE_THRU";
         case OpCode::JMP: return "JMP";
         case OpCode::JMP_IF_FALSE: return "JMP_IF_FALSE";
         case OpCode::RET: return "RET";

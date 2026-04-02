@@ -133,6 +133,10 @@ void insert_or_update_value(const char *name, const char *type, double num_value
 
     Symbol *existing = lookup_any(name);
     if (existing) {
+        if (existing->is_const) {
+            std::printf("Runtime Error: Cannot reassign constant '%s'\n", name);
+            std::exit(1);
+        }
         set_symbol_value(*existing, type, num_value, str_value, bool_value);
         return;
     }
@@ -167,6 +171,10 @@ void insert_or_update_struct(const char *name, const char *struct_type, void *pt
 
     Symbol *existing = lookup_any(name);
     if (existing) {
+        if (existing->is_const) {
+            std::printf("Runtime Error: Cannot reassign constant '%s'\n", name);
+            std::exit(1);
+        }
         set_symbol_struct(*existing, struct_type, ptr_value);
         return;
     }
@@ -199,6 +207,10 @@ void insert_or_update_array(const char *name, void *ptr_value) {
 
     Symbol *existing = lookup_any(name);
     if (existing) {
+        if (existing->is_const) {
+            std::printf("Runtime Error: Cannot reassign constant '%s'\n", name);
+            std::exit(1);
+        }
         set_symbol_array(*existing, ptr_value);
         return;
     }
@@ -231,6 +243,10 @@ void insert_or_update_map(const char *name, void *ptr_value) {
 
     Symbol *existing = lookup_any(name);
     if (existing) {
+        if (existing->is_const) {
+            std::printf("Runtime Error: Cannot reassign constant '%s'\n", name);
+            std::exit(1);
+        }
         set_symbol_map(*existing, ptr_value);
         return;
     }
@@ -263,6 +279,10 @@ void insert_or_update_set(const char *name, void *ptr_value) {
 
     Symbol *existing = lookup_any(name);
     if (existing) {
+        if (existing->is_const) {
+            std::printf("Runtime Error: Cannot reassign constant '%s'\n", name);
+            std::exit(1);
+        }
         set_symbol_set(*existing, ptr_value);
         return;
     }
@@ -292,6 +312,29 @@ void declare_or_update_current_scope_set(const char *name, void *ptr_value) {
 
 const char* get_type_or_error(const char *name) {
     return get_symbol_or_error(name)->type;
+}
+
+void declare_const_value(const char *name, const char *type, double num_value, const char *str_value, int bool_value) {
+    if (!name) return;
+
+    /* If already declared in current scope as const, that is an error too */
+    Symbol *existing = lookup_in_current_scope(name);
+    if (existing) {
+        if (existing->is_const) {
+            std::printf("Runtime Error: Constant '%s' already declared\n", name);
+            std::exit(1);
+        }
+        set_symbol_value(*existing, type, num_value, str_value, bool_value);
+        existing->is_const = 1;
+        return;
+    }
+
+    Symbol s{};
+    std::strncpy(s.name, name, sizeof(s.name) - 1);
+    s.name[sizeof(s.name) - 1] = '\0';
+    set_symbol_value(s, type, num_value, str_value, bool_value);
+    s.is_const = 1;
+    g_scopes.back().symbols[std::string(name)] = s;
 }
 
 } // extern "C"

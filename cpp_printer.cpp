@@ -191,6 +191,19 @@ static void print_expr_cpp(FILE* out, Expr* e, int parentPrec) {
             return;
         }
 
+        case EXPR_ADDROF: {
+            fputc('&', out);
+            fputs(e->name ? e->name : "/*name?*/", out);
+            return;
+        }
+
+        case EXPR_DEREF: {
+            fputs("deref(", out);
+            print_expr_cpp(out, e->left, 0);
+            fputc(')', out);
+            return;
+        }
+
         case EXPR_UNARY: {
             const int prec = 6;
             const bool needParens = prec < parentPrec;
@@ -283,6 +296,39 @@ static void print_stmt_cpp(FILE* out, Stmt* s, int indentLevel) {
             return;
         }
 
+        case STMT_FIXED: {
+            indent(out, indentLevel);
+            fputs("const auto ", out);
+            fputs(s->name ? s->name : "/*name?*/", out);
+            fputs(" = ", out);
+            print_expr_cpp(out, s->expr, 0);
+            fputs(";\n", out);
+            return;
+        }
+
+        case STMT_PLAY: {
+            indent(out, indentLevel);
+            if (!s->play_args) { fputs("/* play(); */\n", out); return; }
+            if (!s->play_args->next) {
+                /* Single arg — printf without format string */
+                fputs("printf(\"%s\", ", out);  /* safe fallback — show as string */
+                /* Actually emit the raw value with to_string equivalent */
+                fputs("std::to_string(", out);
+                print_expr_cpp(out, s->play_args->expr, 0);
+                fputs("));\n", out);
+            } else {
+                /* Format string + args */
+                fputs("printf(", out);
+                print_expr_cpp(out, s->play_args->expr, 0);
+                for (ExprList *a = s->play_args->next; a; a = a->next) {
+                    fputs(", ", out);
+                    print_expr_cpp(out, a->expr, 0);
+                }
+                fputs(");\n", out);
+            }
+            return;
+        }
+
         case STMT_STAGE: {
             indent(out, indentLevel);
             fputs(s->name ? s->name : "/*name?*/", out);
@@ -308,6 +354,16 @@ static void print_stmt_cpp(FILE* out, Stmt* s, int indentLevel) {
             fputc('[', out);
             print_expr_cpp(out, s->index, 0);
             fputs("] = ", out);
+            print_expr_cpp(out, s->expr, 0);
+            fputs(";\n", out);
+            return;
+        }
+
+        case STMT_STAGETHRU: {
+            indent(out, indentLevel);
+            fputs("stagethru ", out);
+            fputs(s->name ? s->name : "/*name?*/", out);
+            fputs(" = ", out);
             print_expr_cpp(out, s->expr, 0);
             fputs(";\n", out);
             return;

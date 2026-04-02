@@ -16,6 +16,7 @@ typedef struct {
     void *ptr_value;   /* for "struct" instances */
     char struct_type[64];
     int scope_level;
+    int is_const;      /* 1 if declared with 'fixed' — reassignment is an error */
 } Symbol;
 
 void push_scope(void);
@@ -29,6 +30,9 @@ void insert_or_update_value(const char *name, const char *type, double num_value
 
 /* For NOTE: declaration-like in current scope (update if already in current scope). */
 void declare_or_update_current_scope_value(const char *name, const char *type, double num_value, const char *str_value, int bool_value);
+
+/* For FIXED: declares an immutable constant in the current scope. */
+void declare_const_value(const char *name, const char *type, double num_value, const char *str_value, int bool_value);
 
 /* For ensembles (struct instances) */
 void insert_or_update_struct(const char *name, const char *struct_type, void *ptr_value);

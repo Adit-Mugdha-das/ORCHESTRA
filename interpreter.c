@@ -692,10 +692,52 @@ Stmt* make_score(Stmt *init, Expr *cond, Stmt *step, Stmt *body) {
     return s;
 }
 
+Stmt* make_fixed(char *name, Expr *expr) {
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_FIXED;
+    s->name = name;
+    s->expr = expr;
+    return s;
+}
+
+Stmt* make_play(ExprList *args) {
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_PLAY;
+    s->play_args = args;
+    return s;
+}
+
 Stmt* make_return(Expr *expr) {
     Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
     if (!s) exit(1);
     s->kind = STMT_RETURN;
+    s->expr = expr;
+    return s;
+}
+
+Expr* make_addrof(char *varname) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_ADDROF;
+    e->name = varname;
+    return e;
+}
+
+Expr* make_deref(Expr *operand) {
+    Expr *e = (Expr*)arena_calloc(1, sizeof(Expr));
+    if (!e) exit(1);
+    e->kind = EXPR_DEREF;
+    e->left = operand;
+    return e;
+}
+
+Stmt* make_stagethru(char *ptrname, Expr *expr) {
+    Stmt *s = (Stmt*)arena_calloc(1, sizeof(Stmt));
+    if (!s) exit(1);
+    s->kind = STMT_STAGETHRU;
+    s->name = ptrname;
     s->expr = expr;
     return s;
 }
@@ -713,6 +755,13 @@ static Value symbol_to_value(Symbol *sym) {
     if (strcmp(sym->type, "array") == 0) return value_array(sym->ptr_value);
     if (strcmp(sym->type, "map") == 0) return value_map(sym->ptr_value);
     if (strcmp(sym->type, "set") == 0) return value_set(sym->ptr_value);
+    if (strcmp(sym->type, "pointer") == 0) {
+        Value v;
+        memset(&v, 0, sizeof(v));
+        strcpy(v.type, "pointer");
+        strncpy(v.str, sym->str_value, sizeof(v.str) - 1);
+        return v;
+    }
     runtime_error("Unknown symbol type");
     return value_num(0, "int");
 }
@@ -732,6 +781,8 @@ static void store_value_note(const char *name, Value v) {
         declare_or_update_current_scope_map(name, v.ptr);
     else if (strcmp(v.type, "set") == 0)
         declare_or_update_current_scope_set(name, v.ptr);
+    else if (strcmp(v.type, "pointer") == 0)
+        declare_or_update_current_scope_value(name, "pointer", 0, v.str, 0);
     else
         runtime_error("Unsupported value type in note");
 }
@@ -751,8 +802,22 @@ static void store_value_stage(const char *name, Value v) {
         insert_or_update_map(name, v.ptr);
     else if (strcmp(v.type, "set") == 0)
         insert_or_update_set(name, v.ptr);
+    else if (strcmp(v.type, "pointer") == 0)
+        insert_or_update_value(name, "pointer", 0, v.str, 0);
     else
         runtime_error("Unsupported value type in stage");
+}
+
+static void store_value_fixed(const char *name, Value v) {
+    /* Only scalar types are supported for fixed constants */
+    if (strcmp(v.type, "int") == 0 || strcmp(v.type, "float") == 0)
+        declare_const_value(name, v.type, v.num, NULL, 0);
+    else if (strcmp(v.type, "bool") == 0)
+        declare_const_value(name, "bool", 0, NULL, v.boolean);
+    else if (strcmp(v.type, "string") == 0)
+        declare_const_value(name, "string", 0, v.str, 0);
+    else
+        runtime_error("fixed only supports scalar constant values (int, float, bool, string)");
 }
 
 static long long value_to_index(Value v) {
@@ -1177,6 +1242,23 @@ static Value eval_expr(Expr *e) {
         }
 
         runtime_error("Indexing requires an array, map, or set");
+    }
+
+    if (e->kind == EXPR_ADDROF) {
+        /* Return a pointer value: type="pointer", str = variable name */
+        if (!e->name) runtime_error("addrof: null variable name");
+        Value v;
+        memset(&v, 0, sizeof(v));
+        strcpy(v.type, "pointer");
+        strncpy(v.str, e->name, sizeof(v.str) - 1);
+        return v;
+    }
+
+    if (e->kind == EXPR_DEREF) {
+        Value pv = eval_expr(e->left);
+        if (strcmp(pv.type, "pointer") != 0) runtime_error("deref: value is not a pointer");
+        Symbol *sym = get_symbol_or_error(pv.str);
+        return symbol_to_value(sym);
     }
 
     if (e->kind == EXPR_CALL) {
@@ -1669,6 +1751,19 @@ static ExecSignal exec_stmt(Stmt *s) {
             runtime_error("Index assignment requires array, map, or set variable");
             return SIG_OK;
         }
+        case STMT_STAGETHRU: {
+            /* Write through pointer: look up the pointer var, find its target, update it. */
+            Symbol *psym = get_symbol_or_error(s->name);
+            if (strcmp(psym->type, "pointer") != 0) runtime_error("stagethru: variable is not a pointer");
+            Value rhs = eval_expr(s->expr);
+            /* str_value of the pointer symbol holds the target variable name */
+            const char *target = psym->str_value;
+            if (strcmp(rhs.type, "string") == 0)
+                insert_or_update_value(target, rhs.type, rhs.num, rhs.str, rhs.boolean);
+            else
+                insert_or_update_value(target, rhs.type, rhs.num, NULL, rhs.boolean);
+            return SIG_OK;
+        }
         case STMT_EMIT: {
             Value v = eval_expr(s->expr);
             print_value(v);
@@ -1750,6 +1845,46 @@ static ExecSignal exec_stmt(Stmt *s) {
             else g_return_value = value_num(0, "int");
             g_has_return = 1;
             return SIG_RETURN;
+        }
+        case STMT_FIXED: {
+            Value v = eval_expr(s->expr);
+            store_value_fixed(s->name, v);
+            return SIG_OK;
+        }
+        case STMT_PLAY: {
+            ExprList *args = s->play_args;
+            if (!args) return SIG_OK;
+            FILE *out = g_out ? g_out : stdout;
+            Value first = eval_expr(args->expr);
+            if (!args->next) {
+                /* Single arg — print without newline */
+                fprint_value_inline(out, first);
+                return SIG_OK;
+            }
+            /* Format string mode: first arg is format, rest are substitution values */
+            if (strcmp(first.type, "string") != 0)
+                runtime_error("play: first argument must be a format string when multiple arguments are given");
+            const char *fmt = first.str;
+            ExprList *cur = args->next;
+            while (*fmt) {
+                if (*fmt == '%' && *(fmt + 1) != '\0') {
+                    fmt++;
+                    char spec = *fmt++;
+                    if (!cur) { fputc('%', out); fputc(spec, out); continue; }
+                    Value av = eval_expr(cur->expr);
+                    cur = cur->next;
+                    switch (spec) {
+                        case 'd': fprintf(out, "%lld", (long long)av.num); break;
+                        case 'f': fprintf(out, "%g", av.num); break;
+                        case 's': fprint_value_inline(out, av); break;
+                        case 'b': fprintf(out, "%s", av.boolean ? "true" : "false"); break;
+                        default: fputc('%', out); fputc(spec, out); break;
+                    }
+                } else {
+                    fputc(*fmt++, out);
+                }
+            }
+            return SIG_OK;
         }
         default:
             runtime_error("Unknown statement kind");

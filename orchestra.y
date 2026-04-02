@@ -53,6 +53,7 @@ static char *qualify_name(const char *a, const char *b) {
 
 /* keywords */
 %token FLOW SYMPHONY TAKE EMIT RETURN NOTE FIXED STAGE ENSEMBLE PLAY BRANCH ELSEWISE REPEAT SCORE
+%token DEREF STAGETHRU AMPERSAND
 %token EXTENDS
 %token TYPE_INT TYPE_FLOAT TYPE_BOOL TYPE_STRING
 %token TRUE FALSE
@@ -233,6 +234,9 @@ statement:
       NOTE IDENTIFIER ASSIGN expression SEMICOLON
         { $$ = make_assign(STMT_NOTE, $2, $4); }
 
+    | FIXED IDENTIFIER ASSIGN expression SEMICOLON
+        { $$ = make_fixed($2, $4); }
+
     | STAGE IDENTIFIER ASSIGN expression SEMICOLON
         { $$ = make_assign(STMT_STAGE, $2, $4); }
 
@@ -251,6 +255,9 @@ statement:
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
 
+    | PLAY arg_list SEMICOLON
+        { $$ = make_play($2); }
+
     | RETURN expression SEMICOLON
       { $$ = make_return($2); }
 
@@ -267,6 +274,9 @@ statement:
       { $$ = make_assign(STMT_BREAK, NULL, NULL); }
     | CONTINUE SEMICOLON
       { $$ = make_assign(STMT_CONTINUE, NULL, NULL); }
+
+    | STAGETHRU IDENTIFIER ASSIGN expression SEMICOLON
+      { $$ = make_stagethru($2, $4); }
 
     | block
 
@@ -390,6 +400,8 @@ primary:
 
     | SUPER DOT IDENTIFIER LPAREN arg_list_opt RPAREN { $$ = make_supercall($3, $5); }
     | SUPER LPAREN arg_list_opt RPAREN { $$ = make_superctor($3); }
+    | AMPERSAND IDENTIFIER { $$ = make_addrof($2); }
+    | DEREF LPAREN expression RPAREN { $$ = make_deref($3); }
     | IDENTIFIER { $$ = make_var($1); }
     ;
 
