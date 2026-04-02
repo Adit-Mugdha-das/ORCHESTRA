@@ -1,0 +1,28 @@
+// Scientific notation tests for compiler project
+flow main {
+    // Integer exponent: 1e9 = 1,000,000,000
+    note a = 1e9;
+    emit a;
+
+    // Float exponent: 2.5e3 = 2500
+    note b = 2.5e3;
+    emit b;
+
+    // Negative exponent: 1e-3 = 0.001
+    note c = 1e-3;
+    emit c;
+
+    // Positive exponent sign: 6.022e+23 (Avogadro's number)
+    note avogadro = 6.022e+23;
+    emit avogadro;
+
+    // Upper-case E: 9.109E-31 (electron mass kg)
+    note electron = 9.109E-31;
+    emit electron;
+
+    // Arithmetic with scientific notation
+    note speed_of_light = 3e8;
+    note time_s = 5e0;
+    note distance = speed_of_light * time_s;
+    emit distance;
+}

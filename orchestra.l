@@ -88,7 +88,13 @@ static void lex_error_at(int line, const char *msg, const char *near_text) {
     exit(1);
 }
 
-[0-9]+\.[0-9]+ {
+[0-9]+\.[0-9]+([eE][+-]?[0-9]+)? {
+    yylval.numlit.num = atof(yytext);
+    yylval.numlit.is_float = 1;
+    return NUMBER;
+}
+
+[0-9]+[eE][+-]?[0-9]+ {
     yylval.numlit.num = atof(yytext);
     yylval.numlit.is_float = 1;
     return NUMBER;

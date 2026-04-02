@@ -1,0 +1,28 @@
+// Test 1: nested repeat loops (nested for-loops)
+// Test 2: branch / elsewise (if/else)
+
+flow main {
+    // --- Nested repeat loops ---
+    note i = 1;
+    repeat (i <= 3) {
+        note j = 1;
+        repeat (j <= 3) {
+            note product = i * j;
+            emit product;
+            stage j = j + 1;
+        }
+        stage i = i + 1;
+    }
+
+    // --- branch / elsewise (if / else) ---
+    note points = 85;
+    branch (points >= 90) {
+        emit "Grade: A";
+    } elsewise {
+        branch (points >= 80) {
+            emit "Grade: B";
+        } elsewise {
+            emit "Grade: C or below";
+        }
+    }
+}

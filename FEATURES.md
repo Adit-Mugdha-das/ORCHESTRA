@@ -56,7 +56,7 @@ This file lists **only features** (no architecture walkthrough). It is intended 
 - Numeric literals:
   - int: `123`
   - float: `123.45`
-  - (no exponent literals like `1e9`)
+  - scientific: `1e9`, `2.5e-3`, `1E+6` (exponent suffix on int or float)
 - String literals:
   - written as `"..."`
   - lexer accepts backslash escapes in the token, but **does not unescape them** (the characters are preserved as typed).
