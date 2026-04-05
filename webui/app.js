@@ -15,6 +15,294 @@ const DEFAULT_CODE = `flow main take() {
 }
 `;
 
+const EXAMPLES = {
+  basics: {
+    label: "Variables & Output",
+    code: `/* Variables & Output — demonstrates note, fixed, stage,
+   emit, scientific notation, and both comment styles */
+flow main take() {
+  note x = 42;
+  fixed PI = 3.14159;
+  note msg = "Hello, ORCHESTRA!";
+
+  // scientific notation literals
+  note big   = 1e9;
+  note small = 2.5e-3;
+
+  emit msg;
+  emit x;
+  emit PI;
+  emit big;
+  emit small;
+
+  stage x = x * 2;
+  emit x;
+
+  note flag = true;
+  emit flag;
+}
+`,
+  },
+
+  control: {
+    label: "Control Flow",
+    code: `// Control Flow — branch/elsewise, &&/||/!, repeat, score, break, continue
+flow main take() {
+  note x = 7;
+  note y = 3;
+
+  // &&, ||, ! operators
+  branch (x > 5 && y < 10) {
+    emit "both conditions true";
+  }
+  branch (x < 0 || y > 0) {
+    emit "at least one true";
+  }
+  branch (!false) {
+    emit "NOT false is true";
+  }
+
+  // repeat loop with continue
+  note i = 0;
+  repeat (i < 4) {
+    stage i = i + 1;
+    branch (i == 3) { continue; }
+    emit i;
+  }
+
+  // score loop with all three parts and break
+  score (note j = 0; j < 5; stage j = j + 1) {
+    branch (j == 4) { break; }
+    emit j;
+  }
+
+  // score with empty init part
+  note k = 3;
+  score (; k > 0; stage k = k - 1) {
+    emit k;
+  }
+}
+`,
+  },
+
+  functions: {
+    label: "Functions & Recursion",
+    code: `// Flows, return values, and recursive Fibonacci
+flow fibonacci take(n) {
+  branch (n <= 1) { return n; }
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+flow greet take(name) {
+  emit "Hello, " + name + "!";
+}
+
+flow main take() {
+  greet("World");
+
+  note i = 0;
+  repeat (i <= 7) {
+    emit fibonacci(i);
+    stage i = i + 1;
+  }
+}
+`,
+  },
+
+  collections: {
+    label: "Collections (Array / Map / Set)",
+    code: `// Collections — array literal, array(n), push/pop/resize, map, set
+flow main take() {
+  // --- Array literal ---
+  note lit = [10, 20, 30];
+  emit lit;
+
+  // --- array(n) + push / pop / resize ---
+  note arr = array(3);
+  stage arr[0] = 10;
+  stage arr[1] = 20;
+  stage arr[2] = 30;
+  push(arr, 40);
+  emit arr;
+  emit pop(arr);
+  resize(arr, 6);
+  emit arr;
+
+  // --- Map ---
+  note m = map();
+  put(m, "lang", "ORCHESTRA");
+  put(m, "year", "2026");
+  emit get(m, "lang");
+  emit has(m, "year");
+  del(m, "year");
+  emit keys(m);
+
+  // --- Set ---
+  note s = set();
+  add(s, "a");
+  add(s, "b");
+  add(s, "a");       // duplicate — ignored
+  emit s;
+  emit has(s, "a");
+  emit has(s, "z");
+}
+`,
+  },
+
+  oop: {
+    label: "OOP & Inheritance",
+    code: `// OOP — ensemble, symphony, extends, this, super(), super.method()
+ensemble Point {
+  int x;
+  int y;
+}
+
+symphony Animal {
+  string name;
+
+  flow init take(n) {
+    stage this.name = n;
+  }
+
+  flow speak take() {
+    emit this.name + " makes a sound.";
+  }
+
+  flow describe take() {
+    emit "Animal: " + this.name;
+  }
+}
+
+symphony Dog extends Animal {
+  flow init take(n) {
+    super(n);           // super constructor chaining
+  }
+
+  flow speak take() {
+    super.describe();   // super.method() call
+    emit this.name + " barks!";
+  }
+}
+
+flow main take() {
+  // ensemble instance
+  note p = Point(3, 4);
+  emit p.x;
+  emit p.y;
+
+  // symphony with user-defined init
+  note a = Animal("Cat");
+  a.speak();
+
+  // subclass with super() and super.method()
+  note d = Dog("Rex");
+  d.speak();
+}
+`,
+  },
+
+  pointers: {
+    label: "Pointers",
+    code: `// Address-of, dereference, and write-through
+flow main take() {
+  note x = 10;
+  note p = &x;
+
+  emit deref(p);       // prints 10
+
+  stagethru p = 99;
+  emit x;              // prints 99 (x was updated through pointer)
+
+  note result = deref(p) + 1;
+  emit result;         // prints 100
+
+  // Pointers work with all scalar types
+  note msg = "hello";
+  note q = &msg;
+  stagethru q = "world";
+  emit msg;            // prints world
+}
+`,
+  },
+
+  scoping: {
+    label: "Scoping & Shadowing",
+    code: `// Lexical scoping — inner blocks can shadow outer variables
+flow double take(x) {
+  return x * 2;
+}
+
+flow main take() {
+  note x = 10;
+  emit x;          // 10 — outer x
+
+  {
+    note x = 99;   // shadows outer x inside this block
+    emit x;        // 99 — inner x
+
+    {
+      note x = 42; // shadows again one level deeper
+      emit x;      // 42
+    }
+
+    emit x;        // 99 — inner x is restored
+  }
+
+  emit x;          // 10 — outer x is unchanged
+
+  // flow parameters are their own scope
+  emit double(x);  // 20
+  emit x;          // still 10
+}
+`,
+  },
+
+  chaining: {
+    label: "Comparison Chaining",
+    code: `// ORCHESTRA supports chained comparisons as true logical chains
+flow main take() {
+  note a = 1;
+  note b = 2;
+  note c = 3;
+
+  // All of these evaluate correctly as chains
+  emit 1 < 2 < 3;          // true
+  emit 3 > 2 > 1;          // true
+  emit a < b < c;           // true
+  emit a == 1 != 0;         // true
+  emit 5 < 4 < 10;          // false — 5 < 4 is false
+
+  branch (a < b < c) {
+    emit "chain holds";
+  }
+}
+`,
+  },
+
+  formatted: {
+    label: "Formatted Output",
+    code: `// play with format specifiers: %d %f %s %b
+flow main take() {
+  note age    = 21;
+  note score  = 98.6;
+  note name   = "ORCHESTRA";
+  note passed = true;
+
+  play "Name:   %s\\n", name;
+  play "Age:    %d\\n", age;
+  play "Score:  %f\\n", score;
+  play "Passed: %b\\n", passed;
+
+  // play without \n — no automatic newline
+  play "A";
+  play "B";
+  play "C";
+  emit "";     // flush with newline
+}
+`,
+  },
+};
+
 const state = {
   editor: null,
   useFallback: false,
@@ -387,4 +675,39 @@ window.addEventListener("DOMContentLoaded", () => {
   if (styleSel) styleSel.addEventListener("change", refreshCppIfVisible);
   setShowCppButtonState();
   setShowBytecodeButtonState();
+
+  // --- Examples dropdown ---
+  const examplesBtn = $("examplesBtn");
+  const examplesMenu = $("examplesMenu");
+
+  if (examplesBtn && examplesMenu) {
+    examplesBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      examplesMenu.hidden = !examplesMenu.hidden;
+    });
+
+    document.querySelectorAll(".exampleItem").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        const example = EXAMPLES[key];
+        if (!example) return;
+        setCode(example.code);
+        examplesMenu.hidden = true;
+        // Clear cached views so fresh run uses the new code.
+        state.lastRunView = null;
+        state.lastCppView = null;
+        state.lastBytecodeView = null;
+        state.activeView = "run";
+        applyView(null);
+        setShowCppButtonState();
+        setShowBytecodeButtonState();
+        setStatus("Ready");
+      });
+    });
+
+    // Close menu when clicking anywhere outside.
+    document.addEventListener("click", () => {
+      examplesMenu.hidden = true;
+    });
+  }
 });

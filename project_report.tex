@@ -190,6 +190,10 @@ ORCHESTRA is presented here in the same formal style as the initial proposal: sh
 \texttt{this} & Current object context & this & \texttt{this.value} \\
 \texttt{super} & Parent access & base / super & \texttt{super.init()} \\
 \texttt{stagethru} & Pointer write-through & \texttt{*p = value} & \texttt{stagethru p = 10} \\
+\texttt{return} & Return value from a flow & return & \texttt{return x + 1} \\
+\texttt{break} & Exit current loop & break & \texttt{break;} \\
+\texttt{continue} & Skip to next iteration & continue & \texttt{continue;} \\
+\texttt{extends} & Inheritance declaration & extends & \texttt{symphony C extends P} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -232,6 +236,7 @@ Strings support escape sequences such as \texttt{\textbackslash n}, \texttt{\tex
 \texttt{*} & Multiplication & \texttt{*} & \texttt{a * b} \\
 \texttt{/} & Division & \texttt{/} & \texttt{a / b} \\
 \texttt{==} & Equality & \texttt{==} & \texttt{x == y} \\
+\texttt{!=} & Inequality & \texttt{!=} & \texttt{x != y} \\
 \texttt{<, <=} & Less-than comparison & \texttt{<, <=} & \texttt{x < y} \\
 \texttt{>, >=} & Greater-than comparison & \texttt{>, >=} & \texttt{x > y} \\
 \texttt{\&\&} & Logical AND & \texttt{\&\&} & \texttt{a \&\& b} \\
@@ -244,6 +249,8 @@ Strings support escape sequences such as \texttt{\textbackslash n}, \texttt{\tex
 \end{table}
 
 The language also supports \textbf{comparison chaining}, allowing expressions such as \texttt{1 < 2 < 3} and \texttt{a == b != c} to be evaluated as true logical chains.
+
+Operator precedence from highest to lowest: unary \texttt{!} and \texttt{-}, then \texttt{*} and \texttt{/}, then \texttt{+} and \texttt{-}, then comparisons (\texttt{< <= > >= == !=}), then \texttt{\&\&}, then \texttt{||}.
 
 \Needspace{8\baselineskip}
 \subsection*{Control Structures}
@@ -278,7 +285,7 @@ The language also supports \textbf{comparison chaining}, allowing expressions su
 \end{tabularx}
 \end{table}
 
-The \texttt{score} loop supports optional initialization and step expressions. If the condition is omitted, the loop runs until terminated with \texttt{break}. A \texttt{continue} statement transfers control to the step expression before the next iteration.
+The \texttt{score} loop supports optional initialization and step expressions; any or all three parts may be omitted. If the condition is omitted, the loop runs until terminated with \texttt{break}. A \texttt{continue} statement transfers control to the step expression before the next iteration.
 
 \Needspace{10\baselineskip}
 \subsection*{Functions (Flows)}
@@ -297,7 +304,7 @@ flow add take(a, b) {
 }
 \end{lstlisting}
 
-At program level, the language supports top-level flows and uses \texttt{main} as the normal entry point when present. The \texttt{take(...)} parameter part may also be omitted for flows with no parameters.
+At program level, the language supports top-level flows and uses \texttt{main} as the normal entry point when present. If no \texttt{main} flow is defined, execution begins at the first top-level flow in the program. The \texttt{take(...)} parameter part may also be omitted for flows with no parameters.
 
 \Needspace{9\baselineskip}
 \subsection*{Variables, Output, and Assignment}
@@ -320,7 +327,7 @@ At program level, the language supports top-level flows and uses \texttt{main} a
 \end{tabularx}
 \end{table}
 
-Formatted output through \texttt{play} supports \texttt{\%d}, \texttt{\%f}, \texttt{\%s}, and \texttt{\%b}. Constants declared with \texttt{fixed} cannot be reassigned later.
+Formatted output through \texttt{play} supports \texttt{\%d}, \texttt{\%f}, \texttt{\%s}, and \texttt{\%b}. Constants declared with \texttt{fixed} cannot be reassigned later and support only scalar types (\texttt{int}, \texttt{float}, \texttt{bool}, \texttt{string}).
 
 \Needspace{9\baselineskip}
 \subsection*{Collection Features}
@@ -358,7 +365,8 @@ Indexing behavior depends on the target collection: arrays return the element at
 \texttt{extends} & Inheritance support \\
 \texttt{this} & Current instance reference \\
 \texttt{super} & Parent constructor or method access \\
-\texttt{obj.field} / \texttt{obj.method()} & Field access and method calls \\
+\texttt{obj.field} / \texttt{obj.method()} & Field access and instance method calls \\
+\texttt{TypeName.method(args)} & Static-style method call on a named type \\
 \texttt{stage obj.field = expr;} & Field assignment \\
 \texttt{TypeName(...)} & Constructor-like instance creation \\
 \bottomrule
@@ -389,14 +397,18 @@ Pointers can be used directly in expressions, for example \texttt{deref(p) + 3}.
 \subsection*{Additional Language Features}
 
 \begin{itemize}
-\item single-line and multiline comments
+\item single-line comments using \texttt{//} and multiline comments using \texttt{/* ... */}
 \item scientific notation such as \texttt{1e9} and \texttt{2.5e-3}
-\item multiline comments using \texttt{/* ... */}
 \item lexical scoping and shadowing through nested blocks
 \item formatted output using \texttt{play}
 \item recursion through flow calls, with runtime recursion-limit checks
 \item equivalent execution behavior across AST and VM backends
 \end{itemize}
+
+\Needspace{10\baselineskip}
+\subsection*{C++ Emit Mode}
+
+The compiler includes a dedicated output mode activated with \texttt{--emit=cpp}. In this mode the AST is translated into a readable C++-style representation without executing the program. Two presentation styles are available: \texttt{--emit-style=cpp} uses \texttt{auto} and \texttt{emit(...);}, while \texttt{--emit-style=pseudo} uses \texttt{var} and \texttt{print(...);}. The emitter prepends a keyword legend mapping ORCHESTRA constructs to their C++ equivalents. Comparison chains such as \texttt{a < b < c} are rewritten as \texttt{((a < b) \&\& (b < c))} to match C++ evaluation semantics.
 
 \section{System Architecture}
 
