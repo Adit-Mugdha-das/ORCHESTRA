@@ -1536,6 +1536,11 @@ static bool vm_execute_impl(FILE* out, const BytecodeProgram& prog, const Byteco
             case OpCode::DIV: {
                 VMValue b = pop();
                 VMValue a = pop();
+                if (ins.op == OpCode::ADD && a.tag == VTag::STR && b.tag == VTag::STR) {
+                    std::string s = std::string(a.str ? a.str : "") + std::string(b.str ? b.str : "");
+                    if (!push(v_str(s.c_str()))) return false;
+                    break;
+                }
                 if (!is_numeric(a) || !is_numeric(b)) {
                     vm_fail(out, "Arithmetic expects numeric");
                     return false;

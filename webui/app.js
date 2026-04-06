@@ -151,52 +151,34 @@ flow main take() {
 
   oop: {
     label: "OOP & Inheritance",
-    code: `// OOP — ensemble, symphony, extends, this, super(), super.method()
-ensemble Point {
-  int x;
-  int y;
-}
-
+    code: `// OOP — symphony, extends, this, super(), super.method()
 symphony Animal {
-  string name;
+  int age;
 
-  flow init take(n) {
-    stage this.name = n;
-  }
-
-  flow speak take() {
-    emit this.name + " makes a sound.";
+  flow init take(a) {
+    stage this.age = a;
   }
 
   flow describe take() {
-    emit "Animal: " + this.name;
+    emit this.age;
   }
 }
 
 symphony Dog extends Animal {
-  flow init take(n) {
-    super(n);           // super constructor chaining
+  flow init take(a) {
+    super(a);           // super constructor chaining
   }
 
-  flow speak take() {
+  flow bark take() {
     super.describe();   // super.method() call
-    emit this.name + " barks!";
+    emit this.age + 1;
   }
 }
 
 flow main take() {
-  // ensemble instance
-  note p = Point(3, 4);
-  emit p.x;
-  emit p.y;
-
-  // symphony with user-defined init
-  note a = Animal("Cat");
-  a.speak();
-
   // subclass with super() and super.method()
-  note d = Dog("Rex");
-  d.speak();
+  note d = Dog(5);
+  d.bark();
 }
 `,
   },

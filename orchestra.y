@@ -252,6 +252,9 @@ statement:
     | SUPER LPAREN arg_list_opt RPAREN SEMICOLON
       { $$ = make_expr_stmt(make_superctor($3)); }
 
+    | SUPER DOT IDENTIFIER LPAREN arg_list_opt RPAREN SEMICOLON
+      { $$ = make_expr_stmt(make_supercall($3, $5)); }
+
     | EMIT expression SEMICOLON
         { $$ = make_emit($2); }
 
